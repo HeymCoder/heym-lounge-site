@@ -86,23 +86,37 @@
       const FUNCTIONS_URL = "https://qhvveecnpkmkobhwgwof.supabase.co/functions/v1";
       const PUBLISHABLE_KEY = "sb_publishable_xprNtaa037ftwhOZaO6oLQ_XwvB1V07";
 
-      let accessToken = null;
       let members = [];
 
+      // Reads the current session fresh on every call instead of a token
+      // captured once at boot -- supabase-js refreshes the underlying
+      // session in the background (jwt_expiry is 3600s), but a token cached
+      // in a plain variable at boot never sees that refresh.
       async function call(name, { method = "GET", body, query } = {}) {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (!session) {
+          window.location.href = "../login/";
+          throw new Error("Session expired");
+        }
         let url = `${FUNCTIONS_URL}/${name}`;
         if (query) url += "?" + new URLSearchParams(query).toString();
         const res = await fetch(url, {
           method,
           headers: {
             apikey: PUBLISHABLE_KEY,
-            Authorization: `Bearer ${accessToken}`,
+            Authorization: `Bearer ${session.access_token}`,
             "Content-Type": "application/json",
           },
           body: body ? JSON.stringify(body) : undefined,
         });
         const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.error || `${name} failed (${res.status})`);
+        if (!res.ok) {
+          const error = new Error(data.error || `${name} failed (${res.status})`);
+          error.status = res.status;
+          throw error;
+        }
         return data;
       }
 
@@ -330,15 +344,24 @@
       if (!data.session) {
         window.location.href = "../login/";
       } else {
-        accessToken = data.session.access_token;
         document.getElementById("who-email").textContent = data.session.user.email;
         try {
           await loadAll();
           document.getElementById("loading-note").hidden = true;
           document.getElementById("dashboard-content").hidden = false;
         } catch (e) {
-          document.getElementById("loading-note").hidden = true;
-          document.getElementById("access-denied").hidden = false;
+          // Only a real 403 means "not an organiser" -- anything else (a
+          // network failure, a 500, ...) used to show the same "geen
+          // organisatorrechten" message, which sent people down the wrong
+          // troubleshooting path for an unrelated problem.
+          if (e.status === 403) {
+            document.getElementById("loading-note").hidden = true;
+            document.getElementById("access-denied").hidden = false;
+          } else {
+            const note = document.getElementById("loading-note");
+            note.textContent = `Er ging iets mis: ${e.message}. Ververs de pagina om het opnieuw te proberen.`;
+            note.className = "status error";
+          }
         }
       }
     </script>
