@@ -1,0 +1,297 @@
+@font-face {
+  font-family: "BeirutDisplay";
+  src:
+    url("../assets/BeirutDisplayWeb-Light.woff2") format("woff2"),
+    url("../assets/BeirutDisplayWeb-Light.woff") format("woff");
+  font-weight: 200;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --heym-navy: #1b365d;
+  --heym-blue-mid: #8e9fbc;
+  --heym-blue-pale: #c5cfda;
+  --heym-accent: #183028;
+  --neutral-bg: #f5f3ef;
+  --neutral-card: #ffffff;
+  --neutral-line: #e2ddd3;
+  --ink: #2a2723;
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--neutral-bg);
+  color: var(--ink);
+  font-family:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
+  line-height: 1.5;
+}
+
+h1,
+h2,
+.wordmark {
+  font-family: "BeirutDisplay", system-ui, sans-serif;
+  font-weight: 200;
+  letter-spacing: 0.01em;
+  color: var(--heym-navy);
+}
+
+a {
+  color: var(--heym-navy);
+}
+
+.wrap {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+}
+
+header.site {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.5rem;
+  background: var(--neutral-bg);
+}
+
+header.site img {
+  height: 30px;
+  display: block;
+}
+
+header.site nav a {
+  color: var(--heym-navy);
+  text-decoration: none;
+  font-size: 0.95rem;
+  border: 1px solid var(--heym-navy);
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+}
+
+header.site nav a:hover {
+  background: var(--heym-navy);
+  color: white;
+}
+
+.hero-photo {
+  position: relative;
+  height: min(70vh, 640px);
+  min-height: 360px;
+  overflow: hidden;
+  background: var(--heym-navy) center / cover no-repeat;
+}
+
+.hero-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.hero-photo::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to top,
+    rgba(18, 16, 14, 0.75) 0%,
+    rgba(18, 16, 14, 0.15) 55%,
+    rgba(18, 16, 14, 0) 100%
+  );
+}
+
+.hero-photo .hero-text {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 2.5rem 1.5rem;
+  text-align: center;
+  color: white;
+  z-index: 1;
+}
+
+.hero-photo .hero-text h1 {
+  color: white;
+  font-size: clamp(2.5rem, 6vw, 4rem);
+  margin: 0 0 0.5rem;
+}
+
+.hero-photo .hero-text .tagline {
+  color: var(--heym-blue-pale);
+  font-size: 1.1rem;
+  margin: 0;
+  max-width: 32rem;
+  margin-inline: auto;
+}
+
+.intro {
+  padding: 2.5rem 0 1rem;
+}
+
+section {
+  padding: 2.5rem 0;
+  border-top: 1px solid var(--neutral-line);
+}
+
+section h2 {
+  font-size: 1.6rem;
+  margin: 0 0 1rem;
+}
+
+.card {
+  background: var(--neutral-card);
+  border: 1px solid var(--neutral-line);
+  border-radius: 12px;
+  padding: 1.5rem;
+}
+
+/* TGL keeps the flyer's own established look -- a self-contained dark
+   card inside the neutral page, not the whole site's theme. */
+.tgl-card {
+  background: var(--heym-navy);
+  color: white;
+  border-radius: 16px;
+  padding: 2rem;
+}
+
+.tgl-card h2 {
+  color: white;
+  margin-top: 0;
+}
+
+.tgl-card p {
+  color: var(--heym-blue-pale);
+}
+
+.cta {
+  background: var(--heym-accent);
+  border-radius: 16px;
+  padding: 2rem;
+  text-align: center;
+  margin-top: 1.5rem;
+}
+
+.cta h2 {
+  color: white;
+  margin-top: 0;
+}
+
+.cta p {
+  color: var(--heym-blue-pale);
+}
+
+.button {
+  display: inline-block;
+  background: white;
+  color: var(--heym-navy);
+  text-decoration: none;
+  font-weight: 600;
+  padding: 0.85rem 1.75rem;
+  border-radius: 999px;
+  margin-top: 0.5rem;
+}
+
+.button:hover {
+  background: var(--heym-blue-pale);
+}
+
+.fine-print {
+  font-size: 0.85rem;
+  color: var(--heym-blue-mid);
+  margin-top: 1rem;
+}
+
+footer.site {
+  text-align: center;
+  padding: 2rem 1.5rem 3rem;
+  color: #8a8478;
+  font-size: 0.9rem;
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+label {
+  font-size: 0.9rem;
+  color: #6b665c;
+}
+
+input {
+  font: inherit;
+  padding: 0.7rem 0.9rem;
+  border-radius: 8px;
+  border: 1px solid var(--neutral-line);
+  background: white;
+  color: var(--ink);
+}
+
+input:focus {
+  outline: 2px solid var(--heym-navy);
+}
+
+button.primary {
+  font: inherit;
+  font-weight: 600;
+  background: var(--heym-navy);
+  color: white;
+  border: none;
+  padding: 0.8rem 1.5rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+button.primary:hover {
+  opacity: 0.9;
+}
+
+button.primary:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.status {
+  min-height: 1.2rem;
+  font-size: 0.9rem;
+}
+
+.status.error {
+  color: #a33a3a;
+}
+
+.status.ok {
+  color: var(--heym-navy);
+}
+
+.auth-wrap {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  background: var(--neutral-bg);
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 380px;
+}
+
+.auth-card .wordmark {
+  display: block;
+  text-align: center;
+  margin-bottom: 1.5rem;
+  font-size: 1.4rem;
+}

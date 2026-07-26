@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="nl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Inloggen — Heym Lounge</title>
+    <link rel="stylesheet" href="../shared/styles.css" />
+  </head>
+  <body>
+    <div class="auth-wrap">
+      <div class="auth-card">
+        <a href="../" class="wordmark" style="text-decoration: none">
+          Heym Lounge
+        </a>
+
+        <div id="invite-form" class="card" hidden>
+          <p>Welkom! Stel hieronder je wachtwoord in om je account te activeren.</p>
+          <form id="set-password-form">
+            <label for="new-password">Nieuw wachtwoord</label>
+            <input
+              id="new-password"
+              type="password"
+              minlength="8"
+              autocomplete="new-password"
+              required
+            />
+            <button class="primary" type="submit">Wachtwoord instellen</button>
+            <p id="invite-status" class="status"></p>
+          </form>
+        </div>
+
+        <div id="login-form" class="card" hidden>
+          <p>Log in met je e-mailadres en wachtwoord.</p>
+          <form id="sign-in-form">
+            <label for="email">E-mail</label>
+            <input id="email" type="email" autocomplete="email" required />
+            <label for="password">Wachtwoord</label>
+            <input
+              id="password"
+              type="password"
+              autocomplete="current-password"
+              required
+            />
+            <button class="primary" type="submit">Inloggen</button>
+            <p id="login-status" class="status"></p>
+          </form>
+        </div>
+
+        <div id="signed-in" class="card" hidden>
+          <p>Je bent ingelogd. De ledenomgeving is in aanbouw &mdash; kom snel terug.</p>
+          <button class="primary" id="sign-out">Uitloggen</button>
+        </div>
+      </div>
+    </div>
+
+    <script type="module">
+      import { supabase } from "../shared/supabase-client.js";
+
+      const inviteForm = document.getElementById("invite-form");
+      const loginForm = document.getElementById("login-form");
+      const signedInView = document.getElementById("signed-in");
+
+      function show(el) {
+        [inviteForm, loginForm, signedInView].forEach((e) => (e.hidden = e !== el));
+      }
+
+      const hashParams = new URLSearchParams(window.location.hash.slice(1));
+      const flowType = hashParams.get("type");
+
+      if (flowType === "invite" || flowType === "recovery") {
+        show(inviteForm);
+      } else {
+        const { data } = await supabase.auth.getSession();
+        show(data.session ? signedInView : loginForm);
+      }
+
+      document
+        .getElementById("set-password-form")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const status = document.getElementById("invite-status");
+          const password = document.getElementById("new-password").value;
+          status.textContent = "Bezig...";
+          status.className = "status";
+          const { error } = await supabase.auth.updateUser({ password });
+          if (error) {
+            status.textContent = error.message;
+            status.className = "status error";
+            return;
+          }
+          history.replaceState(null, "", window.location.pathname);
+          show(signedInView);
+        });
+
+      document
+        .getElementById("sign-in-form")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const status = document.getElementById("login-status");
+          const email = document.getElementById("email").value;
+          const password = document.getElementById("password").value;
+          status.textContent = "Bezig...";
+          status.className = "status";
+          const { error } = await supabase.auth.signInWithPassword({ email, password });
+          if (error) {
+            status.textContent = error.message;
+            status.className = "status error";
+            return;
+          }
+          show(signedInView);
+        });
+
+      document.getElementById("sign-out").addEventListener("click", async () => {
+        await supabase.auth.signOut();
+        show(loginForm);
+      });
+    </script>
+  </body>
+</html>
