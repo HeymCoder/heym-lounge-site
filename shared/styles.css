@@ -68,18 +68,24 @@ header.site img {
   display: block;
 }
 
+/* Matches heymgroep.nl's own persistent CTA: solid black pill, uppercase --
+   navy is their heading/footer color, black is what they actually use for
+   buttons on a light background. */
 header.site nav a {
-  color: var(--heym-navy);
+  color: white;
+  background: black;
   text-decoration: none;
-  font-size: 0.95rem;
-  border: 1px solid var(--heym-navy);
-  padding: 0.5rem 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: none;
+  padding: 0.65rem 1.25rem;
   border-radius: 999px;
 }
 
 header.site nav a:hover {
-  background: var(--heym-navy);
-  color: white;
+  opacity: 0.85;
 }
 
 .hero-photo {
@@ -211,11 +217,61 @@ section h2 {
   margin-top: 1rem;
 }
 
-footer.site {
-  text-align: center;
-  padding: 2rem 1.5rem 3rem;
-  color: #8a8478;
+/* Footer -- deliberately echoes heymgroep.nl's own footer pattern: dark
+   navy, columned links, real contact/legal details, oversized wordmark. */
+.site-footer {
+  background: var(--heym-navy);
+  color: white;
+  margin-top: 3rem;
+  padding: 3rem 1.5rem 0;
+  overflow: hidden;
+}
+
+.footer-grid {
+  max-width: 720px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 2rem;
+  padding-bottom: 2rem;
+}
+
+.footer-grid h3 {
+  color: white;
+  font-size: 1.1rem;
+  margin: 0 0 0.75rem;
+}
+
+.footer-grid a {
+  display: block;
+  color: var(--heym-blue-pale);
+  text-decoration: none;
   font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+}
+
+.footer-grid a:hover {
+  color: white;
+}
+
+.footer-legal {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 1.5rem 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  color: var(--heym-blue-mid);
+  font-size: 0.8rem;
+}
+
+.footer-wordmark {
+  font-family: "BeirutDisplay", system-ui, sans-serif;
+  font-weight: 200;
+  font-size: min(18vw, 9rem);
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.08);
+  text-align: center;
+  white-space: nowrap;
+  padding: 0 0 1rem;
 }
 
 form {
