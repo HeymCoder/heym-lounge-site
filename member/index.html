@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="nl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mijn events — Heym Lounge</title>
+    <link rel="stylesheet" href="../shared/styles.css" />
+  </head>
+  <body>
+    <header class="dash">
+      <a href="../"><img src="../assets/heym-logo.png" alt="Heym" /></a>
+      <div class="who">
+        <a id="to-dashboard" href="../dashboard/" hidden>Naar het dashboard</a>
+        <span id="who-email"></span>
+        <button class="small" id="sign-out">Uitloggen</button>
+      </div>
+    </header>
+
+    <main class="dash-wrap">
+      <p id="loading-note">Laden...</p>
+
+      <div id="member-content" hidden>
+        <section class="dash-section">
+          <h2>Mijn events</h2>
+          <div id="events-list"></div>
+        </section>
+      </div>
+    </main>
+
+    <footer class="site-footer">
+      <div class="footer-grid">
+        <div>
+          <h3>Heym Lounge</h3>
+          <a href="../">Home</a>
+          <a href="../login/">Leden inloggen</a>
+        </div>
+        <div>
+          <h3>Contact</h3>
+          <a href="mailto:tgl@heymgroep.nl">tgl@heymgroep.nl</a>
+          <a href="mailto:info@heymgroep.nl">info@heymgroep.nl</a>
+          <a href="tel:+31202807045">020 2807045</a>
+        </div>
+        <div>
+          <h3>Heym Groep</h3>
+          <a href="https://heymgroep.nl/" target="_blank" rel="noopener">heymgroep.nl</a>
+          <a href="https://heymrenovatie.nl/" target="_blank" rel="noopener">Heym Renovatie</a>
+          <a href="https://heymverduurzaming.nl/" target="_blank" rel="noopener"
+            >Heym Verduurzaming</a
+          >
+        </div>
+      </div>
+      <div class="footer-legal">
+        KVK: 69343551 · BTW-nummer: NL857839251.B01 · Veemarkt 237, 1019 CM Amsterdam
+      </div>
+      <div class="footer-wordmark">heym</div>
+    </footer>
+
+    <script src="../shared/vendor/supabase-js.js"></script>
+    <script type="module">
+      import { supabase } from "../shared/supabase-client.js";
+
+      const FUNCTIONS_URL = "https://qhvveecnpkmkobhwgwof.supabase.co/functions/v1";
+      const PUBLISHABLE_KEY = "sb_publishable_xprNtaa037ftwhOZaO6oLQ_XwvB1V07";
+
+      // Reads the current session fresh on every call rather than caching a
+      // token at boot -- see the same fix in dashboard/index.html (P6).
+      async function call(name, { method = "GET", body, query } = {}) {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (!session) {
+          window.location.href = "../login/";
+          throw new Error("Session expired");
+        }
+        let url = `${FUNCTIONS_URL}/${name}`;
+        if (query) url += "?" + new URLSearchParams(query).toString();
+        const res = await fetch(url, {
+          method,
+          headers: {
+            apikey: PUBLISHABLE_KEY,
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
+          },
+          body: body ? JSON.stringify(body) : undefined,
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          const error = new Error(data.error || `${name} failed (${res.status})`);
+          error.status = res.status;
+          throw error;
+        }
+        return data;
+      }
+
+      // Server values (event names, locations, etc.) go through esc() before
+      // touching innerHTML -- same reasoning as the dashboard: this is
+      // rendering data that ultimately traces back to organiser input, but
+      // there's no reason to trust it more here than there.
+      function esc(value) {
+        return String(value ?? "").replace(
+          /[&<>"']/g,
+          (c) =>
+            ({
+              "&": "&amp;",
+              "<": "&lt;",
+              ">": "&gt;",
+              '"': "&quot;",
+              "'": "&#39;",
+            })[c],
+        );
+      }
+
+      function fmtDate(iso) {
+        return new Date(iso).toLocaleString("nl-NL", {
+          weekday: "short",
+          day: "numeric",
+          month: "short",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+      }
+
+      const RSVP_LABELS = {
+        pending: "Nog niet gereageerd",
+        yes: "Je komt",
+        no: "Je hebt afgemeld",
+      };
+
+      function renderEvents(events) {
+        const el = document.getElementById("events-list");
+        if (events.length === 0) {
+          el.innerHTML = '<p class="empty-note">Je hebt nog geen uitnodigingen.</p>';
+          return;
+        }
+        el.innerHTML = "";
+        for (const ev of events) {
+          const row = document.createElement("div");
+          row.className = "list-item";
+          row.style.flexDirection = "column";
+          row.style.alignItems = "stretch";
+          row.innerHTML = `
+            <div style="display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap">
+              <div>
+                <strong>${esc(ev.name)}</strong> <span class="meta">(${ev.type === "golf" ? "golf" : "sociaal"})</span>
+                <div class="meta">${fmtDate(ev.starts_at)} · ${esc(ev.location)}${ev.series ? ` · ${esc(ev.series)}` : ""}</div>
+                <div class="meta">${esc(RSVP_LABELS[ev.rsvp_status] ?? ev.rsvp_status)}</div>
+              </div>
+              <div class="actions">
+                <button class="small" data-action="yes">Ja, ik kom</button>
+                <button class="small danger" data-action="no">Nee, ik kan niet</button>
+                ${ev.type === "golf" ? '<button class="small" data-action="scoreboard">Bekijk scorebord</button>' : ""}
+              </div>
+            </div>
+            <div class="scoreboard" hidden></div>
+          `;
+
+          row.querySelectorAll("[data-action='yes'], [data-action='no']").forEach((btn) => {
+            btn.addEventListener("click", async () => {
+              row.querySelectorAll("button").forEach((b) => (b.disabled = true));
+              try {
+                await call("rsvp", {
+                  method: "POST",
+                  body: { event_id: ev.id, rsvp_status: btn.dataset.action },
+                });
+                await loadAll();
+              } catch (e) {
+                alert(e.message);
+                row.querySelectorAll("button").forEach((b) => (b.disabled = false));
+              }
+            });
+          });
+
+          const scoreboardBtn = row.querySelector("[data-action='scoreboard']");
+          if (scoreboardBtn) {
+            const board = row.querySelector(".scoreboard");
+            scoreboardBtn.addEventListener("click", async () => {
+              if (!board.hidden) {
+                board.hidden = true;
+                scoreboardBtn.textContent = "Bekijk scorebord";
+                return;
+              }
+              scoreboardBtn.disabled = true;
+              try {
+                const teams = await call("get-event-scoreboard", { query: { event_id: ev.id } });
+                board.innerHTML = teams.length
+                  ? teams
+                      .map((t) => {
+                        const names = (t.golf_team_members ?? [])
+                          .map((m) => esc(m.members?.name ?? ""))
+                          .join(", ");
+                        const score = t.golf_scores?.score;
+                        return `<div class="list-item"><div>${esc(t.label ?? "Team")} — ${names}</div><div>${score ?? "-"}</div></div>`;
+                      })
+                      .join("")
+                  : '<p class="empty-note">Nog geen scores ingevoerd.</p>';
+                board.hidden = false;
+                scoreboardBtn.textContent = "Verberg scorebord";
+              } catch (e) {
+                alert(e.message);
+              } finally {
+                scoreboardBtn.disabled = false;
+              }
+            });
+          }
+
+          el.appendChild(row);
+        }
+      }
+
+      async function loadAll() {
+        const { member, events } = await call("list-my-events");
+        document.getElementById("to-dashboard").hidden = !member.is_organiser;
+        renderEvents(events);
+      }
+
+      document.getElementById("sign-out").addEventListener("click", async () => {
+        await supabase.auth.signOut();
+        window.location.href = "../login/";
+      });
+
+      // Boot
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) {
+        window.location.href = "../login/";
+      } else {
+        document.getElementById("who-email").textContent = data.session.user.email;
+        try {
+          await loadAll();
+          document.getElementById("loading-note").hidden = true;
+          document.getElementById("member-content").hidden = false;
+        } catch (e) {
+          const note = document.getElementById("loading-note");
+          note.textContent = `Er ging iets mis: ${e.message}. Ververs de pagina om het opnieuw te proberen.`;
+          note.className = "status error";
+        }
+      }
+    </script>
+  </body>
+</html>

@@ -196,6 +196,23 @@ section h2 {
   color: var(--heym-blue-pale);
 }
 
+.cta label {
+  color: var(--heym-blue-pale);
+  text-align: left;
+}
+
+.cta form {
+  text-align: left;
+  margin-top: 1rem;
+}
+
+/* button.primary is navy-on-white, which disappears against this card's
+   own dark background -- flip it to match .button's contrast here instead. */
+.cta button.primary {
+  background: white;
+  color: var(--heym-navy);
+}
+
 .button {
   display: inline-block;
   background: white;

@@ -57,13 +57,20 @@
 
           <div class="cta">
             <h2>Interesse?</h2>
-            <p>Stuur je naam + naam potentiële partner of bedrijf naar ons.</p>
-            <a
-              class="button"
-              href="mailto:tgl@heymgroep.nl?subject=Aanmelding%20TGL%20Wintercompetitie&body=Naam%3A%0A%0ANaam%20partner%20%2F%20Bedrijf%3A%0A"
-            >
-              Meld je aan
-            </a>
+            <p>Laat je gegevens achter, dan nemen we contact met je op.</p>
+            <form id="interest-form">
+              <label for="interest-name">Naam</label>
+              <input id="interest-name" required />
+
+              <label for="interest-company">Naam potentiële partner of bedrijf (optioneel)</label>
+              <input id="interest-company" />
+
+              <label for="interest-email">E-mail</label>
+              <input id="interest-email" type="email" required />
+
+              <button class="primary" type="submit">Meld je aan</button>
+              <p id="interest-status" class="status"></p>
+            </form>
             <p class="fine-print">Kennisgeving · geen garantie op deelname</p>
           </div>
         </div>
@@ -97,5 +104,43 @@
       </div>
       <div class="footer-wordmark">heym</div>
     </footer>
+
+    <script>
+      // submit-interest is a public endpoint (no login needed) -- just an
+      // apikey header, same as the Supabase client would send. No need to
+      // load the vendored supabase-js bundle on this page for one fetch.
+      const FUNCTIONS_URL = "https://qhvveecnpkmkobhwgwof.supabase.co/functions/v1";
+      const PUBLISHABLE_KEY = "sb_publishable_xprNtaa037ftwhOZaO6oLQ_XwvB1V07";
+
+      document.getElementById("interest-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const status = document.getElementById("interest-status");
+        const button = e.target.querySelector("button");
+        button.disabled = true;
+        status.textContent = "Bezig...";
+        status.className = "status";
+        try {
+          const res = await fetch(`${FUNCTIONS_URL}/submit-interest`, {
+            method: "POST",
+            headers: { apikey: PUBLISHABLE_KEY, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: document.getElementById("interest-name").value,
+              partner_or_company: document.getElementById("interest-company").value || null,
+              email: document.getElementById("interest-email").value,
+            }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || "Aanmelden is niet gelukt");
+          e.target.reset();
+          status.textContent = "Bedankt! We nemen contact met je op.";
+          status.className = "status ok";
+        } catch (err) {
+          status.textContent = err.message;
+          status.className = "status error";
+        } finally {
+          button.disabled = false;
+        }
+      });
+    </script>
   </body>
 </html>
