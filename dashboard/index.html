@@ -106,6 +106,24 @@
         return data;
       }
 
+      // Everything rendered below comes from the database, and interest
+      // submissions are written by an unauthenticated public endpoint -- so any
+      // server value put into innerHTML is attacker-controlled until it goes
+      // through esc(). Member names inherit the same taint via approval.
+      function esc(value) {
+        return String(value ?? "").replace(
+          /[&<>"']/g,
+          (c) =>
+            ({
+              "&": "&amp;",
+              "<": "&lt;",
+              ">": "&gt;",
+              '"': "&quot;",
+              "'": "&#39;",
+            })[c],
+        );
+      }
+
       function fmtDate(iso) {
         return new Date(iso).toLocaleString("nl-NL", {
           weekday: "short",
@@ -128,8 +146,8 @@
           row.className = "list-item";
           row.innerHTML = `
             <div>
-              <strong>${s.name}</strong> ${s.partner_or_company ? `— ${s.partner_or_company}` : ""}
-              <div class="meta">${s.email} · ${fmtDate(s.submitted_at)}</div>
+              <strong>${esc(s.name)}</strong> ${s.partner_or_company ? `— ${esc(s.partner_or_company)}` : ""}
+              <div class="meta">${esc(s.email)} · ${fmtDate(s.submitted_at)}</div>
             </div>
             <div class="actions">
               <button class="small" data-action="approved">Goedkeuren</button>
@@ -172,8 +190,8 @@
           row.className = "list-item";
           row.innerHTML = `
             <div>
-              <strong>${ev.name}</strong> <span class="meta">(${ev.type === "golf" ? "golf" : "sociaal"})</span>
-              <div class="meta">${fmtDate(ev.starts_at)} · ${ev.location}${ev.series ? ` · ${ev.series}` : ""}</div>
+              <strong>${esc(ev.name)}</strong> <span class="meta">(${ev.type === "golf" ? "golf" : "sociaal"})</span>
+              <div class="meta">${fmtDate(ev.starts_at)} · ${esc(ev.location)}${ev.series ? ` · ${esc(ev.series)}` : ""}</div>
             </div>
           `;
           el.appendChild(row);
@@ -182,7 +200,7 @@
         const scoreSelect = document.getElementById("score-event");
         const golfEvents = events.filter((e) => e.type === "golf");
         scoreSelect.innerHTML = golfEvents.length
-          ? golfEvents.map((e) => `<option value="${e.id}">${e.name} — ${fmtDate(e.starts_at)}</option>`).join("")
+          ? golfEvents.map((e) => `<option value="${esc(e.id)}">${esc(e.name)} — ${fmtDate(e.starts_at)}</option>`).join("")
           : '<option value="">Geen golfevents</option>';
       }
 
@@ -192,8 +210,8 @@
           .map(
             (m) => `
             <label>
-              <input type="checkbox" value="${m.id}" />
-              ${m.name}${m.is_organiser ? " (organisator)" : ""}
+              <input type="checkbox" value="${esc(m.id)}" />
+              ${esc(m.name)}${m.is_organiser ? " (organisator)" : ""}
             </label>
           `,
           )
@@ -211,7 +229,7 @@
           </div>
           <div class="checkbox-grid team-members">
             ${members
-              .map((m) => `<label><input type="checkbox" value="${m.id}" /> ${m.name}</label>`)
+              .map((m) => `<label><input type="checkbox" value="${esc(m.id)}" /> ${esc(m.name)}</label>`)
               .join("")}
           </div>
           <label>Score</label>
