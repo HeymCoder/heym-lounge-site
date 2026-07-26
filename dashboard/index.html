@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="nl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dashboard — Heym Lounge</title>
+    <link rel="stylesheet" href="../shared/styles.css" />
+  </head>
+  <body>
+    <header class="dash">
+      <a href="../"><img src="../assets/heym-logo.png" alt="Heym" /></a>
+      <div class="who">
+        <span id="who-email"></span>
+        <button class="small" id="sign-out">Uitloggen</button>
+      </div>
+    </header>
+
+    <main class="dash-wrap">
+      <p id="loading-note">Laden...</p>
+
+      <div id="access-denied" class="card" hidden>
+        <p>Dit account heeft geen organisatorrechten.</p>
+        <a href="../login/">Terug naar inloggen</a>
+      </div>
+
+      <div id="dashboard-content" hidden>
+        <section class="dash-section">
+          <h2>Aanmeldingen</h2>
+          <div id="submissions-list"></div>
+        </section>
+
+        <section class="dash-section">
+          <h2>Events</h2>
+          <div id="events-list"></div>
+
+          <h3>Nieuw event</h3>
+          <form id="create-event-form" class="card">
+            <label for="ev-name">Naam</label>
+            <input id="ev-name" required />
+
+            <label for="ev-type">Type</label>
+            <select id="ev-type">
+              <option value="social">Sociaal (borrel/get-together)</option>
+              <option value="golf">Golf (TGL)</option>
+            </select>
+
+            <label for="ev-starts">Datum en tijd</label>
+            <input id="ev-starts" type="datetime-local" required />
+
+            <label for="ev-location">Locatie</label>
+            <input id="ev-location" required value="Heym Lounge" />
+
+            <label for="ev-capacity">Capaciteit (optioneel)</label>
+            <input id="ev-capacity" type="number" min="1" />
+
+            <label for="ev-series">Seizoen/reeks (optioneel, bv. "TGL 2026-2027")</label>
+            <input id="ev-series" />
+
+            <label>Uitnodigen</label>
+            <div id="invite-members" class="checkbox-grid"></div>
+
+            <button class="primary" type="submit">Event aanmaken</button>
+            <p id="create-event-status" class="status"></p>
+          </form>
+        </section>
+
+        <section class="dash-section">
+          <h2>Golfscores invoeren</h2>
+          <form id="score-form" class="card">
+            <label for="score-event">Golfevent</label>
+            <select id="score-event"></select>
+
+            <div id="teams-container"></div>
+            <button type="button" class="small" id="add-team">+ Team toevoegen</button>
+
+            <button class="primary" type="submit">Scores opslaan</button>
+            <p id="score-status" class="status"></p>
+          </form>
+        </section>
+      </div>
+    </main>
+
+    <script type="module">
+      import { supabase } from "../shared/supabase-client.js";
+
+      const FUNCTIONS_URL = "https://qhvveecnpkmkobhwgwof.supabase.co/functions/v1";
+      const PUBLISHABLE_KEY = "sb_publishable_xprNtaa037ftwhOZaO6oLQ_XwvB1V07";
+
+      let accessToken = null;
+      let members = [];
+
+      async function call(name, { method = "GET", body, query } = {}) {
+        let url = `${FUNCTIONS_URL}/${name}`;
+        if (query) url += "?" + new URLSearchParams(query).toString();
+        const res = await fetch(url, {
+          method,
+          headers: {
+            apikey: PUBLISHABLE_KEY,
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: body ? JSON.stringify(body) : undefined,
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || `${name} failed (${res.status})`);
+        return data;
+      }
+
+      function fmtDate(iso) {
+        return new Date(iso).toLocaleString("nl-NL", {
+          weekday: "short",
+          day: "numeric",
+          month: "short",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+      }
+
+      function renderSubmissions(subs) {
+        const el = document.getElementById("submissions-list");
+        if (subs.length === 0) {
+          el.innerHTML = '<p class="empty-note">Geen openstaande aanmeldingen.</p>';
+          return;
+        }
+        el.innerHTML = "";
+        for (const s of subs) {
+          const row = document.createElement("div");
+          row.className = "list-item";
+          row.innerHTML = `
+            <div>
+              <strong>${s.name}</strong> ${s.partner_or_company ? `— ${s.partner_or_company}` : ""}
+              <div class="meta">${s.email} · ${fmtDate(s.submitted_at)}</div>
+            </div>
+            <div class="actions">
+              <button class="small" data-action="approved">Goedkeuren</button>
+              <button class="small danger" data-action="rejected">Afwijzen</button>
+            </div>
+          `;
+          row.querySelectorAll("button").forEach((btn) => {
+            btn.addEventListener("click", async () => {
+              btn.disabled = true;
+              try {
+                const result = await call("review-interest", {
+                  method: "POST",
+                  body: { submission_id: s.id, decision: btn.dataset.action },
+                });
+                if (result.invite_error) {
+                  alert(
+                    `Goedgekeurd, maar de uitnodiging kon niet worden verstuurd: ${result.invite_error}\n\nHet lid is wel aangemaakt -- de uitnodiging moet opnieuw geprobeerd worden.`,
+                  );
+                }
+                await loadAll();
+              } catch (e) {
+                alert(e.message);
+                btn.disabled = false;
+              }
+            });
+          });
+          el.appendChild(row);
+        }
+      }
+
+      function renderEvents(events) {
+        const el = document.getElementById("events-list");
+        if (events.length === 0) {
+          el.innerHTML = '<p class="empty-note">Nog geen events.</p>';
+          return;
+        }
+        el.innerHTML = "";
+        for (const ev of events) {
+          const row = document.createElement("div");
+          row.className = "list-item";
+          row.innerHTML = `
+            <div>
+              <strong>${ev.name}</strong> <span class="meta">(${ev.type === "golf" ? "golf" : "sociaal"})</span>
+              <div class="meta">${fmtDate(ev.starts_at)} · ${ev.location}${ev.series ? ` · ${ev.series}` : ""}</div>
+            </div>
+          `;
+          el.appendChild(row);
+        }
+
+        const scoreSelect = document.getElementById("score-event");
+        const golfEvents = events.filter((e) => e.type === "golf");
+        scoreSelect.innerHTML = golfEvents.length
+          ? golfEvents.map((e) => `<option value="${e.id}">${e.name} — ${fmtDate(e.starts_at)}</option>`).join("")
+          : '<option value="">Geen golfevents</option>';
+      }
+
+      function renderMemberCheckboxes() {
+        const el = document.getElementById("invite-members");
+        el.innerHTML = members
+          .map(
+            (m) => `
+            <label>
+              <input type="checkbox" value="${m.id}" />
+              ${m.name}${m.is_organiser ? " (organisator)" : ""}
+            </label>
+          `,
+          )
+          .join("");
+      }
+
+      function addTeamRow() {
+        const container = document.getElementById("teams-container");
+        const row = document.createElement("div");
+        row.className = "team-row";
+        row.innerHTML = `
+          <div class="team-row-header">
+            <input placeholder="Teamnaam (optioneel)" class="team-label" />
+            <button type="button" class="small danger remove-team">Verwijderen</button>
+          </div>
+          <div class="checkbox-grid team-members">
+            ${members
+              .map((m) => `<label><input type="checkbox" value="${m.id}" /> ${m.name}</label>`)
+              .join("")}
+          </div>
+          <label>Score</label>
+          <input type="number" class="team-score" required />
+        `;
+        row.querySelector(".remove-team").addEventListener("click", () => row.remove());
+        container.appendChild(row);
+      }
+
+      async function loadAll() {
+        const [subs, mem, events] = await Promise.all([
+          call("list-interest-submissions"),
+          call("list-members"),
+          call("list-events"),
+        ]);
+        members = mem;
+        renderSubmissions(subs);
+        renderMemberCheckboxes();
+        renderEvents(events);
+      }
+
+      document.getElementById("create-event-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const status = document.getElementById("create-event-status");
+        status.textContent = "Bezig...";
+        status.className = "status";
+        const invite_member_ids = [...document.querySelectorAll("#invite-members input:checked")].map(
+          (i) => i.value,
+        );
+        try {
+          await call("create-event", {
+            method: "POST",
+            body: {
+              type: document.getElementById("ev-type").value,
+              name: document.getElementById("ev-name").value,
+              starts_at: new Date(document.getElementById("ev-starts").value).toISOString(),
+              location: document.getElementById("ev-location").value,
+              capacity: document.getElementById("ev-capacity").value
+                ? Number(document.getElementById("ev-capacity").value)
+                : null,
+              series: document.getElementById("ev-series").value || null,
+              invite_member_ids,
+            },
+          });
+          e.target.reset();
+          document.getElementById("ev-location").value = "Heym Lounge";
+          status.textContent = "Event aangemaakt.";
+          status.className = "status ok";
+          await loadAll();
+        } catch (err) {
+          status.textContent = err.message;
+          status.className = "status error";
+        }
+      });
+
+      document.getElementById("add-team").addEventListener("click", addTeamRow);
+
+      document.getElementById("score-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const status = document.getElementById("score-status");
+        const event_id = document.getElementById("score-event").value;
+        if (!event_id) {
+          status.textContent = "Geen golfevent geselecteerd.";
+          status.className = "status error";
+          return;
+        }
+        const teamRows = [...document.querySelectorAll(".team-row")];
+        if (teamRows.length === 0) {
+          status.textContent = "Voeg minstens één team toe.";
+          status.className = "status error";
+          return;
+        }
+        const teams = teamRows.map((row) => ({
+          label: row.querySelector(".team-label").value || null,
+          member_ids: [...row.querySelectorAll(".team-members input:checked")].map((i) => i.value),
+          score: Number(row.querySelector(".team-score").value),
+        }));
+        status.textContent = "Bezig...";
+        status.className = "status";
+        try {
+          await call("enter-golf-score", { method: "POST", body: { event_id, teams } });
+          document.getElementById("teams-container").innerHTML = "";
+          status.textContent = "Scores opgeslagen.";
+          status.className = "status ok";
+        } catch (err) {
+          status.textContent = err.message;
+          status.className = "status error";
+        }
+      });
+
+      document.getElementById("sign-out").addEventListener("click", async () => {
+        await supabase.auth.signOut();
+        window.location.href = "../login/";
+      });
+
+      // Boot
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) {
+        window.location.href = "../login/";
+      } else {
+        accessToken = data.session.access_token;
+        document.getElementById("who-email").textContent = data.session.user.email;
+        try {
+          await loadAll();
+          document.getElementById("loading-note").hidden = true;
+          document.getElementById("dashboard-content").hidden = false;
+        } catch (e) {
+          document.getElementById("loading-note").hidden = true;
+          document.getElementById("access-denied").hidden = false;
+        }
+      }
+    </script>
+  </body>
+</html>

@@ -295,3 +295,152 @@ button.primary:disabled {
   margin-bottom: 1.5rem;
   font-size: 1.4rem;
 }
+
+/* Dashboard */
+
+.dash-wrap {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 0 1.5rem 4rem;
+}
+
+header.dash {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.5rem;
+}
+
+header.dash img {
+  height: 28px;
+}
+
+header.dash .who {
+  font-size: 0.9rem;
+  color: #6b665c;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.dash-section {
+  margin-top: 2rem;
+}
+
+.dash-section h2 {
+  font-size: 1.3rem;
+  margin: 0 0 1rem;
+}
+
+.list-item {
+  background: var(--neutral-card);
+  border: 1px solid var(--neutral-line);
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.list-item .meta {
+  font-size: 0.85rem;
+  color: #6b665c;
+}
+
+.list-item .actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.empty-note {
+  color: #8a8478;
+  font-size: 0.9rem;
+  font-style: italic;
+}
+
+button.small {
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 0.45rem 0.9rem;
+  border-radius: 999px;
+  border: 1px solid var(--heym-navy);
+  background: white;
+  color: var(--heym-navy);
+  cursor: pointer;
+}
+
+button.small:hover {
+  background: var(--heym-navy);
+  color: white;
+}
+
+button.small.danger {
+  border-color: #a33a3a;
+  color: #a33a3a;
+}
+
+button.small.danger:hover {
+  background: #a33a3a;
+  color: white;
+}
+
+button.link {
+  font: inherit;
+  background: none;
+  border: none;
+  color: var(--heym-navy);
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+}
+
+select {
+  font: inherit;
+  padding: 0.7rem 0.9rem;
+  border-radius: 8px;
+  border: 1px solid var(--neutral-line);
+  background: white;
+  color: var(--ink);
+}
+
+.checkbox-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 0.5rem;
+  background: white;
+  border: 1px solid var(--neutral-line);
+  border-radius: 8px;
+  padding: 0.9rem;
+}
+
+.checkbox-grid label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--ink);
+  font-size: 0.9rem;
+}
+
+.checkbox-grid input[type="checkbox"] {
+  width: auto;
+}
+
+.team-row {
+  border: 1px solid var(--neutral-line);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.team-row .team-row-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
