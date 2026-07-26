@@ -207,10 +207,21 @@
         for (const ev of events) {
           const row = document.createElement("div");
           row.className = "list-item";
+          // Golf's capacity is hard-blocked at the database level (see the
+          // enforce_golf_capacity trigger) -- reaching it there is just the
+          // normal full-booked state, nothing to flag. Social/indoor events
+          // are deliberately never blocked (organisers said a couple over
+          // is fine), so going at-or-over capacity there is exactly the
+          // moment that needs the organiser's attention.
+          const capacityLabel =
+            ev.capacity == null
+              ? ""
+              : ` · ${ev.confirmed_count}/${ev.capacity}` +
+                (ev.type !== "golf" && ev.confirmed_count >= ev.capacity ? " ⚠️ bijna vol" : "");
           row.innerHTML = `
             <div>
               <strong>${esc(ev.name)}</strong> <span class="meta">(${ev.type === "golf" ? "golf" : "sociaal"})</span>
-              <div class="meta">${fmtDate(ev.starts_at)} · ${esc(ev.location)}${ev.series ? ` · ${esc(ev.series)}` : ""}</div>
+              <div class="meta">${fmtDate(ev.starts_at)} · ${esc(ev.location)}${ev.series ? ` · ${esc(ev.series)}` : ""}${capacityLabel}</div>
             </div>
           `;
           el.appendChild(row);
@@ -269,6 +280,16 @@
         renderMemberCheckboxes();
         renderEvents(events);
       }
+
+      // Golf's real cap is 8 (see rules.md) -- prefill it as a convenience
+      // when switching to golf, but only if the organiser hasn't already
+      // typed something, and never overwrite a value they've set.
+      document.getElementById("ev-type").addEventListener("change", (e) => {
+        const capacityInput = document.getElementById("ev-capacity");
+        if (e.target.value === "golf" && !capacityInput.value) {
+          capacityInput.value = "8";
+        }
+      });
 
       document.getElementById("create-event-form").addEventListener("submit", async (e) => {
         e.preventDefault();
