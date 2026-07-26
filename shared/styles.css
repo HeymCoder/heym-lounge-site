@@ -12,7 +12,12 @@
   --heym-navy: #1b365d;
   --heym-blue-mid: #8e9fbc;
   --heym-blue-pale: #c5cfda;
-  --heym-accent: #183028;
+  /* Pantone 5535C from HEYM_PMS_Colors.pdf -- a real, deliberately-chosen
+     brand color (rules.md: blue is Heym's own theme, green/red are the
+     sibling divisions' families), not a stray value. Named for what it's
+     used for, not "accent", so it doesn't read as a mistake in a
+     blue-themed site. */
+  --heym-golf-green: #183028;
   --neutral-bg: #f5f3ef;
   --neutral-card: #ffffff;
   --neutral-line: #e2ddd3;
@@ -180,7 +185,7 @@ section h2 {
 }
 
 .cta {
-  background: var(--heym-accent);
+  background: var(--heym-golf-green);
   border-radius: 16px;
   padding: 2rem;
   text-align: center;

@@ -81,12 +81,15 @@
       </div>
     </main>
 
+    <div id="footer-mount"></div>
+
     <script src="../shared/vendor/supabase-js.js"></script>
     <script type="module">
       import { supabase } from "../shared/supabase-client.js";
+      import { FUNCTIONS_URL, SUPABASE_PUBLISHABLE_KEY as PUBLISHABLE_KEY } from "../shared/config.js";
+      import { mountFooter } from "../shared/footer.js";
 
-      const FUNCTIONS_URL = "https://qhvveecnpkmkobhwgwof.supabase.co/functions/v1";
-      const PUBLISHABLE_KEY = "sb_publishable_xprNtaa037ftwhOZaO6oLQ_XwvB1V07";
+      mountFooter("../");
 
       let members = [];
 
