@@ -44,6 +44,9 @@
             <button class="primary" type="submit">Inloggen</button>
             <p id="login-status" class="status"></p>
           </form>
+          <p style="margin-top: 1rem">
+            <button class="link" type="button" id="forgot-password">Wachtwoord vergeten?</button>
+          </p>
         </div>
 
         <div id="signed-in" class="card" hidden>
@@ -124,6 +127,32 @@
       document.getElementById("sign-out").addEventListener("click", async () => {
         await supabase.auth.signOut();
         show(loginForm);
+      });
+
+      // Same recovery flow as the manual admin-API version used before this
+      // existed -- self-service now instead of asking someone to trigger it.
+      // The email lands with #type=recovery, which the flowType check above
+      // already knows how to route to the set-password form.
+      document.getElementById("forgot-password").addEventListener("click", async () => {
+        const status = document.getElementById("login-status");
+        const email = document.getElementById("email").value;
+        if (!email) {
+          status.textContent = "Vul eerst je e-mailadres in.";
+          status.className = "status error";
+          return;
+        }
+        status.textContent = "Bezig...";
+        status.className = "status";
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: window.location.origin + window.location.pathname,
+        });
+        if (error) {
+          status.textContent = error.message;
+          status.className = "status error";
+          return;
+        }
+        status.textContent = "Check je e-mail voor een link om een nieuw wachtwoord in te stellen.";
+        status.className = "status ok";
       });
     </script>
   </body>
