@@ -207,30 +207,11 @@
         const el = document.getElementById("events-list");
         if (events.length === 0) {
           el.innerHTML = '<p class="empty-note">Nog geen events.</p>';
-          return;
-        }
-        el.innerHTML = "";
-        for (const ev of events) {
-          const row = document.createElement("div");
-          row.className = "list-item";
-          // Golf's capacity is hard-blocked at the database level (see the
-          // enforce_golf_capacity trigger) -- reaching it there is just the
-          // normal full-booked state, nothing to flag. Social/indoor events
-          // are deliberately never blocked (organisers said a couple over
-          // is fine), so going at-or-over capacity there is exactly the
-          // moment that needs the organiser's attention.
-          const capacityLabel =
-            ev.capacity == null
-              ? ""
-              : ` · ${ev.confirmed_count}/${ev.capacity}` +
-                (ev.type !== "golf" && ev.confirmed_count >= ev.capacity ? " ⚠️ bijna vol" : "");
-          row.innerHTML = `
-            <div>
-              <strong>${esc(ev.name)}</strong> <span class="meta">(${ev.type === "golf" ? "golf" : "sociaal"})</span>
-              <div class="meta">${fmtDate(ev.starts_at)} · ${esc(ev.location)}${ev.series ? ` · ${esc(ev.series)}` : ""}${capacityLabel}</div>
-            </div>
-          `;
-          el.appendChild(row);
+        } else {
+          el.innerHTML = "";
+          for (const ev of events) {
+            el.appendChild(buildEventRow(ev));
+          }
         }
 
         const scoreSelect = document.getElementById("score-event");
@@ -238,6 +219,159 @@
         scoreSelect.innerHTML = golfEvents.length
           ? golfEvents.map((e) => `<option value="${esc(e.id)}">${esc(e.name)} — ${fmtDate(e.starts_at)}</option>`).join("")
           : '<option value="">Geen golfevents</option>';
+      }
+
+      // datetime-local inputs want local wall-clock time with no timezone --
+      // same round-trip the create-event form already does the other way
+      // (new Date(value).toISOString() on submit).
+      function toDatetimeLocalValue(iso) {
+        const d = new Date(iso);
+        const pad = (n) => String(n).padStart(2, "0");
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      }
+
+      // One row = the summary line (unchanged) plus a collapsed edit panel:
+      // editable fields, the current invite list with a remove button per
+      // person, and a picker for anyone not yet invited. Removals are only
+      // tracked locally (the `removed` set) until "Wijzigingen opslaan" is
+      // clicked -- one update-event call per save, matching how that
+      // endpoint is designed (field edits + invite changes, together).
+      function buildEventRow(ev) {
+        const row = document.createElement("div");
+        row.className = "list-item";
+        row.style.flexDirection = "column";
+        row.style.alignItems = "stretch";
+
+        // Golf's capacity is hard-blocked at the database level (see the
+        // enforce_golf_capacity trigger) -- reaching it there is just the
+        // normal full-booked state, nothing to flag. Social/indoor events
+        // are deliberately never blocked (organisers said a couple over
+        // is fine), so going at-or-over capacity there is exactly the
+        // moment that needs the organiser's attention.
+        const capacityLabel =
+          ev.capacity == null
+            ? ""
+            : ` · ${ev.confirmed_count}/${ev.capacity}` +
+              (ev.type !== "golf" && ev.confirmed_count >= ev.capacity ? " ⚠️ bijna vol" : "");
+
+        const invitedIds = new Set(ev.participants.map((p) => p.member_id));
+        const removed = new Set();
+
+        row.innerHTML = `
+          <div style="display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap">
+            <div>
+              <strong>${esc(ev.name)}</strong> <span class="meta">(${ev.type === "golf" ? "golf" : "sociaal"})</span>
+              <div class="meta">${fmtDate(ev.starts_at)} · ${esc(ev.location)}${ev.series ? ` · ${esc(ev.series)}` : ""}${capacityLabel}</div>
+            </div>
+            <div class="actions">
+              <button type="button" class="small" data-action="edit">Bewerken</button>
+            </div>
+          </div>
+          <div class="event-edit" hidden>
+            <form class="card">
+              <label>Naam</label>
+              <input class="ee-name" value="${esc(ev.name)}" required />
+
+              <label>Datum en tijd</label>
+              <input class="ee-starts" type="datetime-local" value="${toDatetimeLocalValue(ev.starts_at)}" required />
+
+              <label>Locatie</label>
+              <input class="ee-location" value="${esc(ev.location)}" required />
+
+              <label>Capaciteit (optioneel)</label>
+              <input class="ee-capacity" type="number" min="1" value="${ev.capacity ?? ""}" />
+
+              <label>Seizoen/reeks (optioneel)</label>
+              <input class="ee-series" value="${esc(ev.series ?? "")}" />
+
+              <label>Huidige deelnemers</label>
+              <div class="ee-participants"></div>
+
+              <label>Deelnemer toevoegen</label>
+              <div class="checkbox-grid ee-add-members"></div>
+
+              <button class="primary" type="submit">Wijzigingen opslaan</button>
+              <p class="status ee-status"></p>
+            </form>
+          </div>
+        `;
+
+        const editPanel = row.querySelector(".event-edit");
+        const editButton = row.querySelector('[data-action="edit"]');
+        const participantsEl = row.querySelector(".ee-participants");
+        const addMembersEl = row.querySelector(".ee-add-members");
+
+        function renderParticipants() {
+          const current = ev.participants.filter((p) => !removed.has(p.member_id));
+          participantsEl.innerHTML = current.length
+            ? current
+                .map(
+                  (p) => `
+                  <div class="list-item">
+                    <div>${esc(p.name)} <span class="meta">(${esc(p.rsvp_status)})</span></div>
+                    <button type="button" class="small danger" data-remove="${esc(p.member_id)}">Verwijderen</button>
+                  </div>`,
+                )
+                .join("")
+            : '<p class="empty-note">Geen deelnemers.</p>';
+
+          participantsEl.querySelectorAll("[data-remove]").forEach((btn) => {
+            btn.addEventListener("click", () => {
+              removed.add(btn.dataset.remove);
+              renderParticipants();
+            });
+          });
+        }
+
+        // Computed once (not re-run on removal) -- keeping it static avoids
+        // wiping out checkboxes the organiser already ticked here if they
+        // also remove someone else in the same edit session.
+        const notYetInvited = members.filter((m) => !invitedIds.has(m.id));
+        addMembersEl.innerHTML = notYetInvited.length
+          ? notYetInvited
+              .map((m) => `<label><input type="checkbox" value="${esc(m.id)}" /> ${esc(m.name)}</label>`)
+              .join("")
+          : '<p class="empty-note">Iedereen is al uitgenodigd.</p>';
+
+        renderParticipants();
+
+        editButton.addEventListener("click", () => {
+          editPanel.hidden = !editPanel.hidden;
+          editButton.textContent = editPanel.hidden ? "Bewerken" : "Verbergen";
+        });
+
+        row.querySelector("form").addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const status = row.querySelector(".ee-status");
+          status.textContent = "Bezig...";
+          status.className = "status";
+          const add_member_ids = [...addMembersEl.querySelectorAll("input:checked")].map((i) => i.value);
+          try {
+            await call("update-event", {
+              method: "POST",
+              body: {
+                event_id: ev.id,
+                name: row.querySelector(".ee-name").value,
+                starts_at: new Date(row.querySelector(".ee-starts").value).toISOString(),
+                location: row.querySelector(".ee-location").value,
+                capacity: row.querySelector(".ee-capacity").value
+                  ? Number(row.querySelector(".ee-capacity").value)
+                  : null,
+                series: row.querySelector(".ee-series").value || null,
+                add_member_ids,
+                remove_member_ids: [...removed],
+              },
+            });
+            status.textContent = "Opgeslagen.";
+            status.className = "status ok";
+            await loadAll();
+          } catch (err) {
+            status.textContent = err.message;
+            status.className = "status error";
+          }
+        });
+
+        return row;
       }
 
       function renderMembers(mem) {
