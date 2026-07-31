@@ -9,7 +9,7 @@
   <body>
     <div class="auth-wrap">
       <div class="auth-card">
-        <a href="../" class="wordmark" style="text-decoration: none">
+        <a href="../index.html" class="wordmark" style="text-decoration: none">
           Heym Lounge
         </a>
 
@@ -47,11 +47,35 @@
           <p style="margin-top: 1rem">
             <button class="link" type="button" id="forgot-password">Wachtwoord vergeten?</button>
           </p>
+
+          <div
+            style="
+              margin-top: 1.5rem;
+              padding-top: 1.5rem;
+              border-top: 1px solid var(--neutral-line);
+            "
+          >
+            <p><strong>Nog geen relatie?</strong> Meld interesse aan voor de TGL-competitie.</p>
+            <form id="interest-form">
+              <label for="interest-name">Naam</label>
+              <input id="interest-name" required />
+
+              <label for="interest-referred-by">Doorverwezen door (optioneel)</label>
+              <input id="interest-referred-by" placeholder="Naam van een bestaande relatie" />
+
+              <label for="interest-email">E-mail</label>
+              <input id="interest-email" type="email" required />
+
+              <button class="primary" type="submit">Meld je aan</button>
+              <p id="interest-status" class="status"></p>
+            </form>
+            <p class="fine-print">Aanvraag · geen garantie op deelname</p>
+          </div>
         </div>
 
         <div id="signed-in" class="card" hidden>
           <p>Je bent ingelogd.</p>
-          <a class="button" href="../member/" style="color: white; background: var(--heym-navy)">
+          <a class="button" href="../member/index.html" style="color: white; background: var(--heym-navy)">
             Naar mijn events
           </a>
           <p style="margin-top: 1rem">
@@ -64,9 +88,11 @@
     <div id="footer-mount"></div>
 
     <script src="../shared/vendor/supabase-js.js"></script>
-    <script type="module">
-      import { supabase } from "../shared/supabase-client.js";
-      import { mountFooter } from "../shared/footer.js";
+    <script src="../shared/config.js"></script>
+    <script src="../shared/supabase-client.js"></script>
+    <script src="../shared/footer.js"></script>
+    <script>
+      const PUBLISHABLE_KEY = SUPABASE_PUBLISHABLE_KEY;
 
       mountFooter("../");
 
@@ -81,12 +107,17 @@
       const hashParams = new URLSearchParams(window.location.hash.slice(1));
       const flowType = hashParams.get("type");
 
-      if (flowType === "invite" || flowType === "recovery") {
-        show(inviteForm);
-      } else {
-        const { data } = await supabase.auth.getSession();
-        show(data.session ? signedInView : loginForm);
-      }
+      // Top-level await only works in ES modules -- this is now a plain
+      // classic script (see config.js for why), so this needs an async
+      // wrapper instead.
+      (async () => {
+        if (flowType === "invite" || flowType === "recovery") {
+          show(inviteForm);
+        } else {
+          const { data } = await supabaseClient.auth.getSession();
+          show(data.session ? signedInView : loginForm);
+        }
+      })();
 
       document
         .getElementById("set-password-form")
@@ -96,7 +127,7 @@
           const password = document.getElementById("new-password").value;
           status.textContent = "Bezig...";
           status.className = "status";
-          const { error } = await supabase.auth.updateUser({ password });
+          const { error } = await supabaseClient.auth.updateUser({ password });
           if (error) {
             status.textContent = error.message;
             status.className = "status error";
@@ -115,7 +146,7 @@
           const password = document.getElementById("password").value;
           status.textContent = "Bezig...";
           status.className = "status";
-          const { error } = await supabase.auth.signInWithPassword({ email, password });
+          const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
           if (error) {
             status.textContent = error.message;
             status.className = "status error";
@@ -125,7 +156,7 @@
         });
 
       document.getElementById("sign-out").addEventListener("click", async () => {
-        await supabase.auth.signOut();
+        await supabaseClient.auth.signOut();
         show(loginForm);
       });
 
@@ -143,7 +174,7 @@
         }
         status.textContent = "Bezig...";
         status.className = "status";
-        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
           redirectTo: window.location.origin + window.location.pathname,
         });
         if (error) {
@@ -153,6 +184,39 @@
         }
         status.textContent = "Check je e-mail voor een link om een nieuw wachtwoord in te stellen.";
         status.className = "status ok";
+      });
+
+      // submit-interest is a public endpoint (no login needed) -- plain
+      // fetch with just an apikey header, same pattern as the landing
+      // page's version of this form before it moved here.
+      document.getElementById("interest-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const status = document.getElementById("interest-status");
+        const button = e.target.querySelector("button");
+        button.disabled = true;
+        status.textContent = "Bezig...";
+        status.className = "status";
+        try {
+          const res = await fetch(`${FUNCTIONS_URL}/submit-interest`, {
+            method: "POST",
+            headers: { apikey: PUBLISHABLE_KEY, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              name: document.getElementById("interest-name").value,
+              referred_by: document.getElementById("interest-referred-by").value || null,
+              email: document.getElementById("interest-email").value,
+            }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || "Aanmelden is niet gelukt");
+          e.target.reset();
+          status.textContent = "Bedankt! We nemen contact met je op.";
+          status.className = "status ok";
+        } catch (err) {
+          status.textContent = err.message;
+          status.className = "status error";
+        } finally {
+          button.disabled = false;
+        }
       });
     </script>
   </body>

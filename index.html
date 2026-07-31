@@ -14,7 +14,7 @@
     <header class="site">
       <img src="./assets/heym-logo.png" alt="Heym" />
       <nav>
-        <a href="./login/">Leden inloggen</a>
+        <a href="./login/index.html">Relaties</a>
       </nav>
     </header>
 
@@ -46,32 +46,35 @@
         </p>
       </section>
 
-      <section>
-        <div class="tgl-card">
-          <h2>TGL — Tomorrow's Golf League</h2>
-          <p>
-            Onze eigen indoor golfcompetitie: <strong>20 avonden</strong>,
-            wintercompetitie 2026&ndash;2027, in onze eigen Golf Lounge.
-            Telkens strijden verschillende teams tegen elkaar.
-          </p>
+      <section id="events">
+        <h2>De Lounge</h2>
 
-          <div class="cta">
-            <h2>Interesse?</h2>
-            <p>Laat je gegevens achter, dan nemen we contact met je op.</p>
-            <form id="interest-form">
-              <label for="interest-name">Naam</label>
-              <input id="interest-name" required />
+        <div class="photo-gallery" aria-label="Foto's van de Heym Lounge">
+          <div class="photo-gallery-track">
+            <div class="photo-placeholder"><span>📷</span>Foto volgt</div>
+            <div class="photo-placeholder"><span>📷</span>Foto volgt</div>
+            <div class="photo-placeholder"><span>📷</span>Foto volgt</div>
+            <div class="photo-placeholder"><span>📷</span>Foto volgt</div>
+            <div class="photo-placeholder"><span>📷</span>Foto volgt</div>
+            <div class="photo-placeholder"><span>📷</span>Foto volgt</div>
+          </div>
+        </div>
 
-              <label for="interest-company">Naam potentiële partner of bedrijf (optioneel)</label>
-              <input id="interest-company" />
+        <hr class="section-divider" />
 
-              <label for="interest-email">E-mail</label>
-              <input id="interest-email" type="email" required />
+        <div class="tgl-block">
+          <h3>Tomorrow's Golf League (TGL)</h3>
+          <p>Heym organiseert 20 avonden in onze eigen Heym Golf Lounge.</p>
+          <div class="tgl-row">
+            <span>TGL Wintercompetitie 2026&ndash;2027</span>
+            <a class="pill-button" href="./login/index.html">Login</a>
+          </div>
+        </div>
 
-              <button class="primary" type="submit">Meld je aan</button>
-              <p id="interest-status" class="status"></p>
-            </form>
-            <p class="fine-print">Kennisgeving · geen garantie op deelname</p>
+        <div class="other-events">
+          <h3>Andere Events</h3>
+          <div id="events-list">
+            <p class="empty-note">Events laden...</p>
           </div>
         </div>
       </section>
@@ -79,46 +82,60 @@
 
     <div id="footer-mount"></div>
 
-    <script type="module">
+    <script src="./shared/config.js"></script>
+    <script src="./shared/footer.js"></script>
+    <script>
       // submit-interest is a public endpoint (no login needed) -- just an
-      // apikey header, same as the Supabase client would send. Imports only
-      // the two constants from shared/config.js, not shared/supabase-client.js
-      // -- that would drag in the vendored supabase-js bundle for a page that
-      // only ever makes one plain fetch() call.
-      import { FUNCTIONS_URL, SUPABASE_PUBLISHABLE_KEY as PUBLISHABLE_KEY } from "./shared/config.js";
-      import { mountFooter } from "./shared/footer.js";
+      // apikey header, same as the Supabase client would send. Only loads
+      // shared/config.js above, not shared/supabase-client.js -- that would
+      // drag in the vendored supabase-js bundle for a page that only ever
+      // makes one plain fetch() call.
+      const PUBLISHABLE_KEY = SUPABASE_PUBLISHABLE_KEY;
 
       mountFooter("./");
 
-      document.getElementById("interest-form").addEventListener("submit", async (e) => {
-        e.preventDefault();
-        const status = document.getElementById("interest-status");
-        const button = e.target.querySelector("button");
-        button.disabled = true;
-        status.textContent = "Bezig...";
-        status.className = "status";
+      // "Andere Events" only ever shows social events (borrels) -- TGL/golf
+      // is its own static block above with a Login button, not an
+      // itemised list. The backend still strips name/location for golf rows
+      // in this response regardless, so there's nothing sensitive to filter
+      // out client-side even if that ever changes.
+      (async () => {
+        const list = document.getElementById("events-list");
+        const dateFmt = new Intl.DateTimeFormat("nl-NL", { day: "numeric", month: "long", year: "numeric" });
         try {
-          const res = await fetch(`${FUNCTIONS_URL}/submit-interest`, {
-            method: "POST",
-            headers: { apikey: PUBLISHABLE_KEY, "Content-Type": "application/json" },
-            body: JSON.stringify({
-              name: document.getElementById("interest-name").value,
-              partner_or_company: document.getElementById("interest-company").value || null,
-              email: document.getElementById("interest-email").value,
-            }),
+          const res = await fetch(`${FUNCTIONS_URL}/list-public-events`, {
+            headers: { apikey: PUBLISHABLE_KEY },
           });
-          const data = await res.json().catch(() => ({}));
-          if (!res.ok) throw new Error(data.error || "Aanmelden is niet gelukt");
-          e.target.reset();
-          status.textContent = "Bedankt! We nemen contact met je op.";
-          status.className = "status ok";
+          if (!res.ok) throw new Error("Events konden niet geladen worden");
+          const events = (await res.json()).filter((event) => event.type !== "golf");
+
+          if (!events.length) {
+            list.innerHTML = '<p class="empty-note">Binnenkort meer events.</p>';
+            return;
+          }
+
+          list.innerHTML = events
+            .map((event) => {
+              const when = dateFmt.format(new Date(event.starts_at));
+              return `
+                <div class="list-item">
+                  <div>
+                    <strong>${escapeHtml(event.name)}</strong>
+                    <div class="meta">${when} · ${escapeHtml(event.location)}</div>
+                  </div>
+                </div>`;
+            })
+            .join("");
         } catch (err) {
-          status.textContent = err.message;
-          status.className = "status error";
-        } finally {
-          button.disabled = false;
+          list.innerHTML = '<p class="empty-note">Events konden niet geladen worden.</p>';
         }
-      });
+      })();
+
+      function escapeHtml(str) {
+        const div = document.createElement("div");
+        div.textContent = str ?? "";
+        return div.innerHTML;
+      }
     </script>
   </body>
 </html>

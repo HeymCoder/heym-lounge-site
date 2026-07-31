@@ -8,9 +8,9 @@
   </head>
   <body>
     <header class="dash">
-      <a href="../"><img src="../assets/heym-logo.png" alt="Heym" /></a>
+      <a href="../index.html"><img src="../assets/heym-logo.png" alt="Heym" /></a>
       <div class="who">
-        <a id="to-dashboard" href="../dashboard/" hidden>Naar het dashboard</a>
+        <a id="to-dashboard" href="../dashboard/index.html" hidden>Naar het dashboard</a>
         <span id="who-email"></span>
         <button class="small" id="sign-out">Uitloggen</button>
       </div>
@@ -30,10 +30,11 @@
     <div id="footer-mount"></div>
 
     <script src="../shared/vendor/supabase-js.js"></script>
-    <script type="module">
-      import { supabase } from "../shared/supabase-client.js";
-      import { FUNCTIONS_URL, SUPABASE_PUBLISHABLE_KEY as PUBLISHABLE_KEY } from "../shared/config.js";
-      import { mountFooter } from "../shared/footer.js";
+    <script src="../shared/config.js"></script>
+    <script src="../shared/supabase-client.js"></script>
+    <script src="../shared/footer.js"></script>
+    <script>
+      const PUBLISHABLE_KEY = SUPABASE_PUBLISHABLE_KEY;
 
       mountFooter("../");
 
@@ -42,9 +43,9 @@
       async function call(name, { method = "GET", body, query } = {}) {
         const {
           data: { session },
-        } = await supabase.auth.getSession();
+        } = await supabaseClient.auth.getSession();
         if (!session) {
-          window.location.href = "../login/";
+          window.location.href = "../login/index.html";
           throw new Error("Session expired");
         }
         let url = `${FUNCTIONS_URL}/${name}`;
@@ -189,26 +190,30 @@
       }
 
       document.getElementById("sign-out").addEventListener("click", async () => {
-        await supabase.auth.signOut();
-        window.location.href = "../login/";
+        await supabaseClient.auth.signOut();
+        window.location.href = "../login/index.html";
       });
 
-      // Boot
-      const { data } = await supabase.auth.getSession();
-      if (!data.session) {
-        window.location.href = "../login/";
-      } else {
-        document.getElementById("who-email").textContent = data.session.user.email;
-        try {
-          await loadAll();
-          document.getElementById("loading-note").hidden = true;
-          document.getElementById("member-content").hidden = false;
-        } catch (e) {
-          const note = document.getElementById("loading-note");
-          note.textContent = `Er ging iets mis: ${e.message}. Ververs de pagina om het opnieuw te proberen.`;
-          note.className = "status error";
+      // Boot. Top-level await only works in ES modules -- this is now a
+      // plain classic script (see config.js for why), so this needs an
+      // async wrapper instead.
+      (async () => {
+        const { data } = await supabaseClient.auth.getSession();
+        if (!data.session) {
+          window.location.href = "../login/index.html";
+        } else {
+          document.getElementById("who-email").textContent = data.session.user.email;
+          try {
+            await loadAll();
+            document.getElementById("loading-note").hidden = true;
+            document.getElementById("member-content").hidden = false;
+          } catch (e) {
+            const note = document.getElementById("loading-note");
+            note.textContent = `Er ging iets mis: ${e.message}. Ververs de pagina om het opnieuw te proberen.`;
+            note.className = "status error";
+          }
         }
-      }
+      })();
     </script>
   </body>
 </html>

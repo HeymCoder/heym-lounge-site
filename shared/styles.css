@@ -76,7 +76,8 @@ header.site img {
 /* Matches heymgroep.nl's own persistent CTA: solid black pill, uppercase --
    navy is their heading/footer color, black is what they actually use for
    buttons on a light background. */
-header.site nav a {
+header.site nav a,
+.pill-button {
   color: white;
   background: black;
   text-decoration: none;
@@ -89,7 +90,8 @@ header.site nav a {
   border-radius: 999px;
 }
 
-header.site nav a:hover {
+header.site nav a:hover,
+.pill-button:hover {
   opacity: 0.85;
 }
 
@@ -166,58 +168,6 @@ section h2 {
   padding: 1.5rem;
 }
 
-/* TGL keeps the flyer's own established look -- a self-contained dark
-   card inside the neutral page, not the whole site's theme. */
-.tgl-card {
-  background: var(--heym-navy);
-  color: white;
-  border-radius: 16px;
-  padding: 2rem;
-}
-
-.tgl-card h2 {
-  color: white;
-  margin-top: 0;
-}
-
-.tgl-card p {
-  color: var(--heym-blue-pale);
-}
-
-.cta {
-  background: var(--heym-golf-green);
-  border-radius: 16px;
-  padding: 2rem;
-  text-align: center;
-  margin-top: 1.5rem;
-}
-
-.cta h2 {
-  color: white;
-  margin-top: 0;
-}
-
-.cta p {
-  color: var(--heym-blue-pale);
-}
-
-.cta label {
-  color: var(--heym-blue-pale);
-  text-align: left;
-}
-
-.cta form {
-  text-align: left;
-  margin-top: 1rem;
-}
-
-/* button.primary is navy-on-white, which disappears against this card's
-   own dark background -- flip it to match .button's contrast here instead. */
-.cta button.primary {
-  background: white;
-  color: var(--heym-navy);
-}
-
 .button {
   display: inline-block;
   background: white;
@@ -237,6 +187,74 @@ section h2 {
   font-size: 0.85rem;
   color: var(--heym-blue-mid);
   margin-top: 1rem;
+}
+
+.photo-gallery {
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+
+.photo-gallery-track {
+  display: flex;
+  gap: 1rem;
+  padding-bottom: 0.5rem;
+}
+
+/* Stand-ins until real Lounge photography exists -- deliberately marked as
+   such (dashed border, camera icon) rather than left blank. */
+.photo-placeholder {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+  width: 240px;
+  height: 180px;
+  border-radius: 12px;
+  border: 1px dashed var(--heym-blue-mid);
+  background: var(--neutral-card);
+  color: #6b665c;
+  font-size: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+}
+
+.photo-placeholder span {
+  font-size: 1.6rem;
+}
+
+.section-divider {
+  border: none;
+  border-top: 1px solid var(--neutral-line);
+  margin: 2rem 0;
+}
+
+.tgl-block h3,
+.other-events h3 {
+  font-family: "BeirutDisplay", system-ui, sans-serif;
+  font-weight: 200;
+  color: var(--heym-navy);
+  font-size: 1.3rem;
+  margin: 0 0 0.75rem;
+}
+
+.tgl-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.tgl-row span {
+  font-weight: 600;
+  color: var(--heym-navy);
+}
+
+.other-events {
+  margin-top: 2rem;
 }
 
 /* Footer -- deliberately echoes heymgroep.nl's own footer pattern: dark
@@ -264,7 +282,8 @@ section h2 {
   margin: 0 0 0.75rem;
 }
 
-.footer-grid a {
+.footer-grid a,
+.footer-grid span {
   display: block;
   color: var(--heym-blue-pale);
   text-decoration: none;
@@ -274,15 +293,6 @@ section h2 {
 
 .footer-grid a:hover {
   color: white;
-}
-
-.footer-legal {
-  max-width: 720px;
-  margin: 0 auto;
-  padding: 1.5rem 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.15);
-  color: var(--heym-blue-mid);
-  font-size: 0.8rem;
 }
 
 .footer-wordmark {
