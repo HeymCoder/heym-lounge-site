@@ -31,6 +31,11 @@
         </section>
 
         <section class="dash-section">
+          <h2>Relaties</h2>
+          <div id="members-list"></div>
+        </section>
+
+        <section class="dash-section">
           <h2>Events</h2>
           <div id="events-list"></div>
 
@@ -235,6 +240,26 @@
           : '<option value="">Geen golfevents</option>';
       }
 
+      function renderMembers(mem) {
+        const el = document.getElementById("members-list");
+        if (mem.length === 0) {
+          el.innerHTML = '<p class="empty-note">Nog geen relaties.</p>';
+          return;
+        }
+        el.innerHTML = mem
+          .map(
+            (m) => `
+            <div class="list-item">
+              <div>
+                <strong>${esc(m.name)}</strong>${m.is_organiser ? " (organisator)" : ""}
+                <div class="meta">${esc(m.email)}</div>
+              </div>
+            </div>
+          `,
+          )
+          .join("");
+      }
+
       function renderMemberCheckboxes() {
         const el = document.getElementById("invite-members");
         el.innerHTML = members
@@ -278,6 +303,7 @@
         ]);
         members = mem;
         renderSubmissions(subs);
+        renderMembers(mem);
         renderMemberCheckboxes();
         renderEvents(events);
       }
