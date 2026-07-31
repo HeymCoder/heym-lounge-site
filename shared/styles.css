@@ -443,6 +443,13 @@ header.dash .who {
   gap: 0.5rem;
 }
 
+.rsvp-status {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--heym-navy);
+  margin-top: 0.2rem;
+}
+
 .empty-note {
   color: #8a8478;
   font-size: 0.9rem;
@@ -461,7 +468,8 @@ button.small {
   cursor: pointer;
 }
 
-button.small:hover {
+button.small:hover,
+button.small.active {
   background: var(--heym-navy);
   color: white;
 }
@@ -471,7 +479,8 @@ button.small.danger {
   color: #a33a3a;
 }
 
-button.small.danger:hover {
+button.small.danger:hover,
+button.small.danger.active {
   background: #a33a3a;
   color: white;
 }

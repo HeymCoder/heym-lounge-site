@@ -119,11 +119,11 @@
               <div>
                 <strong>${esc(ev.name)}</strong> <span class="meta">(${ev.type === "golf" ? "golf" : "sociaal"})</span>
                 <div class="meta">${fmtDate(ev.starts_at)} · ${esc(ev.location)}${ev.series ? ` · ${esc(ev.series)}` : ""}</div>
-                <div class="meta">${esc(RSVP_LABELS[ev.rsvp_status] ?? ev.rsvp_status)}</div>
+                <div class="rsvp-status">${esc(RSVP_LABELS[ev.rsvp_status] ?? ev.rsvp_status)}</div>
               </div>
               <div class="actions">
-                <button class="small" data-action="yes">Ja, ik kom</button>
-                <button class="small danger" data-action="no">Nee, ik kan niet</button>
+                <button class="small${ev.rsvp_status === "yes" ? " active" : ""}" data-action="yes">Ja, ik kom</button>
+                <button class="small danger${ev.rsvp_status === "no" ? " active" : ""}" data-action="no">Nee, ik kan niet</button>
                 ${ev.type === "golf" ? '<button class="small" data-action="scoreboard">Bekijk scorebord</button>' : ""}
               </div>
             </div>
