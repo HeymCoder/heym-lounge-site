@@ -159,6 +159,11 @@
         });
       }
 
+      // Matches the labels members see on their own "Mijn events" page --
+      // same status, same words, whether it's them or the organiser
+      // looking at it.
+      const RSVP_STATUS_LABELS = { pending: "nog niet gereageerd", yes: "komt", no: "afgemeld" };
+
       function renderSubmissions(subs) {
         const el = document.getElementById("submissions-list");
         if (subs.length === 0) {
@@ -258,7 +263,7 @@
               (ev.type !== "golf" && ev.confirmed_count >= ev.capacity ? " ⚠️ bijna vol" : "");
 
         const invitedIds = new Set(ev.participants.map((p) => p.member_id));
-        const removed = new Set();
+        const declined = new Set();
 
         row.innerHTML = `
           <div style="display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap">
@@ -310,23 +315,37 @@
 
         editButton.textContent = startOpen ? "Verbergen" : "Bewerken";
 
+        // "Afmelden" declines on the member's behalf (rsvp_status -> 'no')
+        // instead of un-inviting them -- for when someone can't use the
+        // portal themselves (e.g. they're sick) and the organiser handles
+        // it. They stay visible here and on their own "Mijn events" page,
+        // just marked declined, rather than the event silently vanishing
+        // for them. Toggle, not a one-way action, so a misclick before
+        // saving is easy to undo.
         function renderParticipants() {
-          const current = ev.participants.filter((p) => !removed.has(p.member_id));
-          participantsEl.innerHTML = current.length
-            ? current
-                .map(
-                  (p) => `
-                  <div class="list-item">
-                    <div>${esc(p.name)} <span class="meta">(${esc(p.rsvp_status)})</span></div>
-                    <button type="button" class="small danger" data-remove="${esc(p.member_id)}">Verwijderen</button>
-                  </div>`,
-                )
-                .join("")
-            : '<p class="empty-note">Geen deelnemers.</p>';
+          if (ev.participants.length === 0) {
+            participantsEl.innerHTML = '<p class="empty-note">Geen deelnemers.</p>';
+            return;
+          }
+          participantsEl.innerHTML = ev.participants
+            .map((p) => {
+              const isDeclining = declined.has(p.member_id);
+              const effectiveStatus = isDeclining ? "no" : p.rsvp_status;
+              return `
+                <div class="list-item">
+                  <div>${esc(p.name)} <span class="meta">(${esc(RSVP_STATUS_LABELS[effectiveStatus] ?? effectiveStatus)}${isDeclining ? " — wordt afgemeld" : ""})</span></div>
+                  <button type="button" class="small${isDeclining ? "" : " danger"}" data-decline="${esc(p.member_id)}">
+                    ${isDeclining ? "Ongedaan maken" : "Afmelden"}
+                  </button>
+                </div>`;
+            })
+            .join("");
 
-          participantsEl.querySelectorAll("[data-remove]").forEach((btn) => {
+          participantsEl.querySelectorAll("[data-decline]").forEach((btn) => {
             btn.addEventListener("click", () => {
-              removed.add(btn.dataset.remove);
+              const id = btn.dataset.decline;
+              if (declined.has(id)) declined.delete(id);
+              else declined.add(id);
               renderParticipants();
             });
           });
@@ -375,7 +394,7 @@
                   : null,
                 series: row.querySelector(".ee-series").value || null,
                 add_member_ids,
-                remove_member_ids: [...removed],
+                decline_member_ids: [...declined],
               },
             });
             // Refresh this row in place with the saved result instead of a
