@@ -104,6 +104,33 @@
         [inviteForm, loginForm, signedInView].forEach((e) => (e.hidden = e !== el));
       }
 
+      // Organisers land straight on the dashboard instead of this generic
+      // "signed in" card -- regular members still see it, with its own
+      // link to /member/. list-my-events is the cheapest existing endpoint
+      // that reveals is_organiser (anyMember auth, works for everyone), so
+      // no new backend call is needed just for this check.
+      async function goToSignedInDestination() {
+        try {
+          const {
+            data: { session },
+          } = await supabaseClient.auth.getSession();
+          const res = await fetch(`${FUNCTIONS_URL}/list-my-events`, {
+            headers: { apikey: PUBLISHABLE_KEY, Authorization: `Bearer ${session.access_token}` },
+          });
+          if (res.ok) {
+            const { member } = await res.json();
+            if (member.is_organiser) {
+              window.location.href = "../dashboard/index.html";
+              return;
+            }
+          }
+        } catch (e) {
+          // Fall through to the generic signed-in card -- a hiccup here
+          // shouldn't block someone from reaching their account at all.
+        }
+        show(signedInView);
+      }
+
       const hashParams = new URLSearchParams(window.location.hash.slice(1));
       const flowType = hashParams.get("type");
 
@@ -115,7 +142,11 @@
           show(inviteForm);
         } else {
           const { data } = await supabaseClient.auth.getSession();
-          show(data.session ? signedInView : loginForm);
+          if (data.session) {
+            await goToSignedInDestination();
+          } else {
+            show(loginForm);
+          }
         }
       })();
 
@@ -134,7 +165,7 @@
             return;
           }
           history.replaceState(null, "", window.location.pathname);
-          show(signedInView);
+          await goToSignedInDestination();
         });
 
       document
@@ -152,7 +183,7 @@
             status.className = "status error";
             return;
           }
-          show(signedInView);
+          await goToSignedInDestination();
         });
 
       document.getElementById("sign-out").addEventListener("click", async () => {
