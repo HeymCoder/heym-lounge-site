@@ -213,7 +213,10 @@
             el.appendChild(buildEventRow(ev));
           }
         }
+        updateScoreEventOptions(events);
+      }
 
+      function updateScoreEventOptions(events) {
         const scoreSelect = document.getElementById("score-event");
         const golfEvents = events.filter((e) => e.type === "golf");
         scoreSelect.innerHTML = golfEvents.length
@@ -236,7 +239,7 @@
       // tracked locally (the `removed` set) until "Wijzigingen opslaan" is
       // clicked -- one update-event call per save, matching how that
       // endpoint is designed (field edits + invite changes, together).
-      function buildEventRow(ev) {
+      function buildEventRow(ev, { startOpen = false } = {}) {
         const row = document.createElement("div");
         row.className = "list-item";
         row.style.flexDirection = "column";
@@ -267,7 +270,7 @@
               <button type="button" class="small" data-action="edit">Bewerken</button>
             </div>
           </div>
-          <div class="event-edit" hidden>
+          <div class="event-edit" ${startOpen ? "" : "hidden"}>
             <form class="card">
               <label>Naam</label>
               <input class="ee-name" value="${esc(ev.name)}" required />
@@ -290,7 +293,10 @@
               <label>Deelnemer toevoegen</label>
               <div class="checkbox-grid ee-add-members"></div>
 
-              <button class="primary" type="submit">Wijzigingen opslaan</button>
+              <div style="display: flex; gap: 0.5rem; align-items: center">
+                <button class="primary" type="submit" style="flex: 1">Wijzigingen opslaan</button>
+                <button type="button" class="small" data-action="close">Sluiten</button>
+              </div>
               <p class="status ee-status"></p>
             </form>
           </div>
@@ -298,8 +304,11 @@
 
         const editPanel = row.querySelector(".event-edit");
         const editButton = row.querySelector('[data-action="edit"]');
+        const closeButton = row.querySelector('[data-action="close"]');
         const participantsEl = row.querySelector(".ee-participants");
         const addMembersEl = row.querySelector(".ee-add-members");
+
+        editButton.textContent = startOpen ? "Verbergen" : "Bewerken";
 
         function renderParticipants() {
           const current = ev.participants.filter((p) => !removed.has(p.member_id));
@@ -335,10 +344,17 @@
 
         renderParticipants();
 
+        function closePanel() {
+          editPanel.hidden = true;
+          editButton.textContent = "Bewerken";
+        }
+
         editButton.addEventListener("click", () => {
           editPanel.hidden = !editPanel.hidden;
           editButton.textContent = editPanel.hidden ? "Bewerken" : "Verbergen";
         });
+
+        closeButton.addEventListener("click", closePanel);
 
         row.querySelector("form").addEventListener("submit", async (e) => {
           e.preventDefault();
@@ -362,9 +378,21 @@
                 remove_member_ids: [...removed],
               },
             });
-            status.textContent = "Opgeslagen.";
-            status.className = "status ok";
-            await loadAll();
+            // Refresh this row in place with the saved result instead of a
+            // full loadAll() -- that rebuilds every row collapsed, which
+            // would close this panel right when the organiser wants to see
+            // the save actually took effect. Other rows don't need
+            // refreshing (nothing about them changed); the golf
+            // score-event dropdown might (this event's own name/date), so
+            // that's refreshed too.
+            const events = await call("list-events");
+            updateScoreEventOptions(events);
+            const updated = events.find((e2) => e2.id === ev.id);
+            const newRow = buildEventRow(updated, { startOpen: true });
+            row.replaceWith(newRow);
+            const newStatus = newRow.querySelector(".ee-status");
+            newStatus.textContent = "Opgeslagen.";
+            newStatus.className = "status ok";
           } catch (err) {
             status.textContent = err.message;
             status.className = "status error";
