@@ -324,6 +324,12 @@
         // just marked declined, rather than the event silently vanishing
         // for them. Toggle, not a one-way action, so a misclick before
         // saving is easy to undo.
+        //
+        // Someone whose rsvp_status is already 'no' (from an earlier save)
+        // gets no button at all -- there's nothing left to decline, and
+        // showing "Afmelden" next to a status that already reads "afgemeld"
+        // just invited a confusing double-negative label once clicked
+        // ("afgemeld — wordt afgemeld").
         function renderParticipants() {
           if (ev.participants.length === 0) {
             participantsEl.innerHTML = '<p class="empty-note">Geen deelnemers.</p>';
@@ -331,6 +337,12 @@
           }
           participantsEl.innerHTML = ev.participants
             .map((p) => {
+              if (p.rsvp_status === "no") {
+                return `
+                  <div class="list-item">
+                    <div>${esc(p.name)} <span class="meta">(${esc(RSVP_STATUS_LABELS.no)})</span></div>
+                  </div>`;
+              }
               const isDeclining = declined.has(p.member_id);
               const effectiveStatus = isDeclining ? "no" : p.rsvp_status;
               return `
