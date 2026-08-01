@@ -301,6 +301,7 @@
               <div style="display: flex; gap: 0.5rem; align-items: center">
                 <button class="primary" type="submit" style="flex: 1">Wijzigingen opslaan</button>
                 <button type="button" class="small" data-action="close">Sluiten</button>
+                <button type="button" class="small danger" data-action="delete">Verwijderen</button>
               </div>
               <p class="status ee-status"></p>
             </form>
@@ -310,6 +311,7 @@
         const editPanel = row.querySelector(".event-edit");
         const editButton = row.querySelector('[data-action="edit"]');
         const closeButton = row.querySelector('[data-action="close"]');
+        const deleteButton = row.querySelector('[data-action="delete"]');
         const participantsEl = row.querySelector(".ee-participants");
         const addMembersEl = row.querySelector(".ee-add-members");
 
@@ -374,6 +376,24 @@
         });
 
         closeButton.addEventListener("click", closePanel);
+
+        // A confirm dialog, not a one-click button -- deleting cascades to
+        // every RSVP, golf team and score attached to this event (see
+        // delete_event's on-delete-cascade FKs) and can't be undone, unlike
+        // "Afmelden" which stays reversible until saved.
+        deleteButton.addEventListener("click", async () => {
+          if (!confirm(`Weet je zeker dat je "${ev.name}" wilt verwijderen? Dit kan niet ongedaan worden gemaakt.`)) {
+            return;
+          }
+          deleteButton.disabled = true;
+          try {
+            await call("delete-event", { method: "POST", body: { event_id: ev.id } });
+            await loadAll();
+          } catch (err) {
+            alert(err.message);
+            deleteButton.disabled = false;
+          }
+        });
 
         row.querySelector("form").addEventListener("submit", async (e) => {
           e.preventDefault();
