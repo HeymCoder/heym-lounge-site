@@ -320,29 +320,23 @@
         // "Afmelden" declines on the member's behalf (rsvp_status -> 'no')
         // instead of un-inviting them -- for when someone can't use the
         // portal themselves (e.g. they're sick) and the organiser handles
-        // it. They stay visible here and on their own "Mijn events" page,
-        // just marked declined, rather than the event silently vanishing
-        // for them. Toggle, not a one-way action, so a misclick before
-        // saving is easy to undo.
+        // it. Toggle, not a one-way action, so a misclick before saving is
+        // easy to undo.
         //
-        // Someone whose rsvp_status is already 'no' (from an earlier save)
-        // gets no button at all -- there's nothing left to decline, and
-        // showing "Afmelden" next to a status that already reads "afgemeld"
-        // just invited a confusing double-negative label once clicked
-        // ("afgemeld — wordt afgemeld").
+        // Once someone is actually declined (persisted, not just a local
+        // toggle), they move out of this list entirely and into "Deelnemer
+        // toevoegen" below, marked "eerder afgemeld" -- they're no longer a
+        // current participant, but re-addable, same as someone never
+        // invited (see update_event's on-conflict-do-update for the reset
+        // to 'pending' that makes re-adding actually work).
         function renderParticipants() {
-          if (ev.participants.length === 0) {
+          const active = ev.participants.filter((p) => p.rsvp_status !== "no");
+          if (active.length === 0) {
             participantsEl.innerHTML = '<p class="empty-note">Geen deelnemers.</p>';
             return;
           }
-          participantsEl.innerHTML = ev.participants
+          participantsEl.innerHTML = active
             .map((p) => {
-              if (p.rsvp_status === "no") {
-                return `
-                  <div class="list-item">
-                    <div>${esc(p.name)} <span class="meta">(${esc(RSVP_STATUS_LABELS.no)})</span></div>
-                  </div>`;
-              }
               const isDeclining = declined.has(p.member_id);
               const effectiveStatus = isDeclining ? "no" : p.rsvp_status;
               return `
@@ -365,13 +359,28 @@
           });
         }
 
-        // Computed once (not re-run on removal) -- keeping it static avoids
-        // wiping out checkboxes the organiser already ticked here if they
-        // also remove someone else in the same edit session.
-        const notYetInvited = members.filter((m) => !invitedIds.has(m.id));
-        addMembersEl.innerHTML = notYetInvited.length
-          ? notYetInvited
-              .map((m) => `<label><input type="checkbox" value="${esc(m.id)}" /> ${esc(m.name)}</label>`)
+        // Addable = never invited at all, or invited before and declined.
+        // Both end up checkable in the same grid (checking either just adds
+        // their id to add_member_ids on save) -- declined ones get a grey
+        // underlay and a note so the organiser can see at a glance that
+        // this person said no once already, without that stopping them
+        // from picking them again. Computed once (not re-run on removal)
+        // -- keeping it static avoids wiping out checkboxes the organiser
+        // already ticked here if they also remove someone else in the same
+        // edit session.
+        const notYetInvited = members.filter((m) => !invitedIds.has(m.id)).map((m) => ({ ...m, previouslyDeclined: false }));
+        const declinedMembers = ev.participants
+          .filter((p) => p.rsvp_status === "no")
+          .map((p) => ({ id: p.member_id, name: p.name, previouslyDeclined: true }));
+        const addable = [...notYetInvited, ...declinedMembers];
+        addMembersEl.innerHTML = addable.length
+          ? addable
+              .map(
+                (m) => `
+                <label${m.previouslyDeclined ? ' class="previously-declined"' : ""}>
+                  <input type="checkbox" value="${esc(m.id)}" /> ${esc(m.name)}${m.previouslyDeclined ? ' <span class="meta">(eerder afgemeld)</span>' : ""}
+                </label>`,
+              )
               .join("")
           : '<p class="empty-note">Iedereen is al uitgenodigd.</p>';
 
