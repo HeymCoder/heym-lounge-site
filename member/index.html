@@ -124,10 +124,9 @@
               <div class="actions">
                 <button class="small${ev.rsvp_status === "yes" ? " active" : ""}" data-action="yes">Ja, ik ben erbij</button>
                 <button class="small danger${ev.rsvp_status === "no" ? " active" : ""}" data-action="no">Nee, ik kan niet</button>
-                ${ev.type === "golf" ? '<button class="small" data-action="scoreboard">Scorebord</button>' : ""}
+                ${ev.type === "golf" ? '<a class="small" target="_blank" href="./tgl-scoreboard.html">Scorebord</a>' : ""}
               </div>
             </div>
-            <div class="scoreboard" hidden></div>
           `;
 
           row.querySelectorAll("[data-action='yes'], [data-action='no']").forEach((btn) => {
@@ -145,43 +144,6 @@
               }
             });
           });
-
-          const scoreboardBtn = row.querySelector("[data-action='scoreboard']");
-          if (scoreboardBtn) {
-            const board = row.querySelector(".scoreboard");
-            scoreboardBtn.addEventListener("click", async () => {
-              if (!board.hidden) {
-                board.hidden = true;
-                return;
-              }
-              scoreboardBtn.disabled = true;
-              try {
-                // Roster is every confirmed "yes" participant, auto-populated
-                // server-side -- not something entered here. Score fields are
-                // null until an organiser fills them in on the dashboard.
-                const players = await call("get-event-scoreboard", { query: { event_id: ev.id } });
-                board.innerHTML = players.length
-                  ? players
-                      .map((p) => {
-                        const meta = [
-                          p.holes_played ? `${esc(p.holes_played)} holes` : "",
-                          p.handicap != null ? `hcp ${esc(p.handicap)}` : "",
-                          p.played_on ? esc(p.played_on) : "",
-                        ]
-                          .filter(Boolean)
-                          .join(" · ");
-                        return `<div class="list-item"><div><strong>${esc(p.name)}</strong><div class="meta">${meta}</div></div><div>${p.total_shots ?? "-"}</div></div>`;
-                      })
-                      .join("")
-                  : '<p class="empty-note">Nog geen deelnemers bevestigd.</p>';
-                board.hidden = false;
-              } catch (e) {
-                alert(e.message);
-              } finally {
-                scoreboardBtn.disabled = false;
-              }
-            });
-          }
 
           el.appendChild(row);
         }
