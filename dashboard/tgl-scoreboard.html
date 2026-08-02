@@ -97,10 +97,41 @@
         });
       }
 
-      // Identical rendering/save logic to what used to live inline in the
-      // dashboard's events list -- moved here since this page now owns
-      // score entry, one roster per golf event instead of one at a time.
-      function renderRoster(container, eventId, roster) {
+      // Read-only by default, matching the member-facing view -- "Bewerken"
+      // (next to the event heading) swaps a roster into an editable form
+      // with its own "Opslaan", same Bewerken/Wijzigingen-opslaan pattern
+      // already used for editing events elsewhere on the dashboard.
+      const rosterByEvent = new Map();
+
+      function renderReadOnly(container, roster) {
+        if (roster.length === 0) {
+          container.innerHTML = '<p class="empty-note">Nog geen deelnemers die komen.</p>';
+          return;
+        }
+        container.innerHTML = `
+          <div class="player-row player-row-header">
+            <span>Speler</span>
+            <span>Holes</span>
+            <span>Totaal slagen</span>
+            <span>Handicap</span>
+            <span></span>
+          </div>
+          ${roster
+            .map(
+              (p) => `
+            <div class="player-row">
+              <strong>${esc(p.name)}</strong>
+              <span>${p.holes_played ?? "-"}</span>
+              <span>${p.total_shots ?? "-"}</span>
+              <span>${p.handicap ?? "-"}</span>
+              <span></span>
+            </div>`,
+            )
+            .join("")}
+        `;
+      }
+
+      function renderEditable(container, eventId, roster) {
         if (roster.length === 0) {
           container.innerHTML = '<p class="empty-note">Nog geen deelnemers die komen.</p>';
           return;
@@ -125,37 +156,42 @@
             </div>`,
             )
             .join("")}
-          <p class="status gs-status"></p>
+          <div style="display: flex; align-items: center; gap: 0.75rem; margin-top: 0.5rem">
+            <button type="button" class="primary gs-save">Opslaan</button>
+            <p class="status gs-status" style="margin: 0"></p>
+          </div>
         `;
 
-        const status = container.querySelector(".gs-status");
-        container.querySelectorAll(".player-row[data-member]").forEach((row) => {
-          const member_id = row.dataset.member;
-          row.querySelectorAll("input").forEach((input) => {
-            input.addEventListener("change", async () => {
-              status.textContent = "Opslaan...";
-              status.className = "status";
-              const num = (el) => (el.value === "" ? null : Number(el.value));
-              try {
-                await call("save-golf-score", {
+        container.querySelector(".gs-save").addEventListener("click", async () => {
+          const status = container.querySelector(".gs-status");
+          status.textContent = "Opslaan...";
+          status.className = "status";
+          const num = (el) => (el.value === "" ? null : Number(el.value));
+          try {
+            await Promise.all(
+              [...container.querySelectorAll(".player-row[data-member]")].map((row) =>
+                call("save-golf-score", {
                   method: "POST",
                   body: {
                     event_id: eventId,
-                    member_id,
+                    member_id: row.dataset.member,
                     holes_played: num(row.querySelector(".gs-holes")),
                     total_shots: num(row.querySelector(".gs-shots")),
                     handicap: num(row.querySelector(".gs-handicap")),
                     played_on: null,
                   },
-                });
-                status.textContent = "Opgeslagen.";
-                status.className = "status ok";
-              } catch (err) {
-                status.textContent = err.message;
-                status.className = "status error";
-              }
-            });
-          });
+                }),
+              ),
+            );
+            const fresh = await call("get-event-scoreboard", { query: { event_id: eventId } });
+            rosterByEvent.set(eventId, fresh);
+            renderEditable(container, eventId, fresh);
+            container.querySelector(".gs-status").textContent = "Opgeslagen.";
+            container.querySelector(".gs-status").className = "status ok";
+          } catch (err) {
+            status.textContent = err.message;
+            status.className = "status error";
+          }
         });
       }
 
@@ -178,7 +214,10 @@
           .map(
             (ev, i) => `
           ${i > 0 ? '<hr class="section-divider" />' : ""}
-          <h3>${esc(ev.name)} <span class="meta">— ${fmtDate(ev.starts_at)}</span></h3>
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap">
+            <h3 style="margin: 0">${esc(ev.name)} <span class="meta">— ${fmtDate(ev.starts_at)}</span></h3>
+            <button type="button" class="small" data-action="edit-toggle" data-event="${esc(ev.id)}">Bewerken</button>
+          </div>
           <div class="roster" data-event="${esc(ev.id)}"></div>
         `,
           )
@@ -188,11 +227,27 @@
           const container = el.querySelector(`.roster[data-event="${ev.id}"]`);
           try {
             const roster = await call("get-event-scoreboard", { query: { event_id: ev.id } });
-            renderRoster(container, ev.id, roster);
+            rosterByEvent.set(ev.id, roster);
+            renderReadOnly(container, roster);
           } catch (err) {
             container.innerHTML = `<p class="status error">${esc(err.message)}</p>`;
           }
         }
+
+        el.querySelectorAll('[data-action="edit-toggle"]').forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const eventId = btn.dataset.event;
+            const container = el.querySelector(`.roster[data-event="${eventId}"]`);
+            const roster = rosterByEvent.get(eventId) ?? [];
+            if (btn.textContent === "Bewerken") {
+              renderEditable(container, eventId, roster);
+              btn.textContent = "Verbergen";
+            } else {
+              renderReadOnly(container, roster);
+              btn.textContent = "Bewerken";
+            }
+          });
+        });
       }
 
       document.getElementById("sign-out").addEventListener("click", async () => {
