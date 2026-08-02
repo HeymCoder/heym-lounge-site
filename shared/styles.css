@@ -451,7 +451,8 @@ header.dash .who {
   font-style: italic;
 }
 
-button.small {
+button.small,
+a.small {
   font: inherit;
   font-size: 0.85rem;
   font-weight: 600;
@@ -461,10 +462,13 @@ button.small {
   background: white;
   color: var(--heym-navy);
   cursor: pointer;
+  display: inline-block;
+  text-decoration: none;
 }
 
 button.small:hover,
-button.small.active {
+button.small.active,
+a.small:hover {
   background: var(--heym-navy);
   color: white;
 }

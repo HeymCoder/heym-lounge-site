@@ -201,7 +201,11 @@
           el.innerHTML = '<p class="empty-note">Nog geen events.</p>';
         } else {
           el.innerHTML = "";
-          for (const ev of events) {
+          // TGL/golf events first -- the primary use of this list -- then
+          // social. Array#sort is stable, so each group keeps the
+          // starts_at-ascending order list-events already returns.
+          const sorted = [...events].sort((a, b) => (a.type === b.type ? 0 : a.type === "golf" ? -1 : 1));
+          for (const ev of sorted) {
             el.appendChild(buildEventRow(ev));
           }
         }
@@ -214,69 +218,6 @@
         const d = new Date(iso);
         const pad = (n) => String(n).padStart(2, "0");
         return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-      }
-
-      // Roster comes from get-event-scoreboard (every confirmed "yes"
-      // participant, auto-populated -- never manually added here). Each
-      // field auto-saves on change via save-golf-score; no separate save
-      // button, matching the dummy prototype this replaced.
-      function renderGolfScoreboard(container, eventId, roster) {
-        if (roster.length === 0) {
-          container.innerHTML = '<p class="empty-note">Nog geen deelnemers die komen.</p>';
-          return;
-        }
-        container.innerHTML = `
-          <div class="player-row player-row-header">
-            <span>Speler</span>
-            <span>Holes</span>
-            <span>Totaal slagen</span>
-            <span>Handicap</span>
-            <span>Datum</span>
-          </div>
-          ${roster
-            .map(
-              (p) => `
-            <div class="player-row" data-member="${esc(p.member_id)}">
-              <strong>${esc(p.name)}</strong>
-              <input type="number" min="0" class="gs-holes" value="${p.holes_played ?? ""}" />
-              <input type="number" class="gs-shots" value="${p.total_shots ?? ""}" />
-              <input type="number" step="0.1" class="gs-handicap" value="${p.handicap ?? ""}" />
-              <input type="date" class="gs-date" value="${p.played_on ?? ""}" />
-            </div>`,
-            )
-            .join("")}
-          <p class="status gs-status"></p>
-        `;
-
-        const status = container.querySelector(".gs-status");
-        container.querySelectorAll(".player-row[data-member]").forEach((row) => {
-          const member_id = row.dataset.member;
-          row.querySelectorAll("input").forEach((input) => {
-            input.addEventListener("change", async () => {
-              status.textContent = "Opslaan...";
-              status.className = "status";
-              const num = (el) => (el.value === "" ? null : Number(el.value));
-              try {
-                await call("save-golf-score", {
-                  method: "POST",
-                  body: {
-                    event_id: eventId,
-                    member_id,
-                    holes_played: num(row.querySelector(".gs-holes")),
-                    total_shots: num(row.querySelector(".gs-shots")),
-                    handicap: num(row.querySelector(".gs-handicap")),
-                    played_on: row.querySelector(".gs-date").value || null,
-                  },
-                });
-                status.textContent = "Opgeslagen.";
-                status.className = "status ok";
-              } catch (err) {
-                status.textContent = err.message;
-                status.className = "status error";
-              }
-            });
-          });
-        });
       }
 
       // One row = the summary line (unchanged) plus a collapsed edit panel:
@@ -310,14 +251,17 @@
           <div style="display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap">
             <div>
               <strong>${esc(ev.name)}</strong> <span class="meta">(${ev.type === "golf" ? "golf" : "sociaal"})</span>
-              <div class="meta">${fmtDate(ev.starts_at)} · ${esc(ev.location)}${ev.series ? ` · ${esc(ev.series)}` : ""}${capacityLabel}</div>
+              <div class="meta">${
+                ev.type === "golf"
+                  ? fmtDate(ev.starts_at)
+                  : `${fmtDate(ev.starts_at)} · ${esc(ev.location)}${ev.series ? ` · ${esc(ev.series)}` : ""}${capacityLabel}`
+              }</div>
             </div>
             <div class="actions">
               <button type="button" class="small" data-action="edit">Bewerken</button>
-              ${ev.type === "golf" ? '<button type="button" class="small" data-action="scoreboard">Scorebord</button>' : ""}
+              ${ev.type === "golf" ? '<a class="small" target="_blank" href="./tgl-scoreboard.html">Scorebord</a>' : ""}
             </div>
           </div>
-          ${ev.type === "golf" ? '<div class="golf-scoreboard" hidden></div>' : ""}
           <div class="event-edit" ${startOpen ? "" : "hidden"}>
             <form class="card">
               <label>Naam</label>
@@ -440,27 +384,6 @@
         });
 
         closeButton.addEventListener("click", closePanel);
-
-        // Loaded once per row, not re-fetched on every toggle -- the save
-        // handlers below keep the rendered rows in sync with what was just
-        // saved, so there's nothing to refresh by reopening.
-        const scoreboardButton = row.querySelector('[data-action="scoreboard"]');
-        const scoreboardPanel = row.querySelector(".golf-scoreboard");
-        if (scoreboardButton && scoreboardPanel) {
-          let loaded = false;
-          scoreboardButton.addEventListener("click", async () => {
-            scoreboardPanel.hidden = !scoreboardPanel.hidden;
-            if (scoreboardPanel.hidden || loaded) return;
-            scoreboardPanel.innerHTML = '<p class="empty-note">Laden...</p>';
-            try {
-              const roster = await call("get-event-scoreboard", { query: { event_id: ev.id } });
-              renderGolfScoreboard(scoreboardPanel, ev.id, roster);
-              loaded = true;
-            } catch (err) {
-              scoreboardPanel.innerHTML = `<p class="status error">${esc(err.message)}</p>`;
-            }
-          });
-        }
 
         // A confirm dialog, not a one-click button -- deleting cascades to
         // every RSVP, golf team and score attached to this event (see

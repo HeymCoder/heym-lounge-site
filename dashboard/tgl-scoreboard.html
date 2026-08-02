@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="nl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TGL Scorebord — Heym Lounge</title>
+    <link rel="stylesheet" href="../shared/styles.css" />
+  </head>
+  <body>
+    <header class="dash">
+      <a href="../index.html"><img src="../assets/heym-logo.png" alt="Heym" /></a>
+      <div class="who">
+        <a href="./index.html">Naar dashboard</a>
+        <span id="who-email"></span>
+        <button class="small" id="sign-out">Uitloggen</button>
+      </div>
+    </header>
+
+    <main class="dash-wrap">
+      <p id="loading-note">Laden...</p>
+
+      <div id="access-denied" class="card" hidden>
+        <p>Dit account heeft geen organisatorrechten.</p>
+        <a href="../member/index.html">Naar mijn events</a>
+      </div>
+
+      <div id="scoreboard-content" hidden>
+        <section class="dash-section">
+          <h2>TGL Scorebord</h2>
+          <div id="events-scoreboard"></div>
+        </section>
+      </div>
+    </main>
+
+    <div id="footer-mount"></div>
+
+    <script src="../shared/vendor/supabase-js.js"></script>
+    <script src="../shared/config.js"></script>
+    <script src="../shared/supabase-client.js"></script>
+    <script src="../shared/footer.js"></script>
+    <script>
+      const PUBLISHABLE_KEY = SUPABASE_PUBLISHABLE_KEY;
+
+      mountFooter("../");
+
+      // Same fresh-session-per-call pattern as the rest of the dashboard
+      // (see dashboard/index.html's own call() for why).
+      async function call(name, { method = "GET", body, query } = {}) {
+        const {
+          data: { session },
+        } = await supabaseClient.auth.getSession();
+        if (!session) {
+          window.location.href = "../login/index.html";
+          throw new Error("Session expired");
+        }
+        let url = `${FUNCTIONS_URL}/${name}`;
+        if (query) url += "?" + new URLSearchParams(query).toString();
+        const res = await fetch(url, {
+          method,
+          headers: {
+            apikey: PUBLISHABLE_KEY,
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
+          },
+          body: body ? JSON.stringify(body) : undefined,
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          const error = new Error(data.error || `${name} failed (${res.status})`);
+          error.status = res.status;
+          throw error;
+        }
+        return data;
+      }
+
+      function esc(value) {
+        return String(value ?? "").replace(
+          /[&<>"']/g,
+          (c) =>
+            ({
+              "&": "&amp;",
+              "<": "&lt;",
+              ">": "&gt;",
+              '"': "&quot;",
+              "'": "&#39;",
+            })[c],
+        );
+      }
+
+      function fmtDate(iso) {
+        return new Date(iso).toLocaleString("nl-NL", {
+          weekday: "short",
+          day: "numeric",
+          month: "short",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+      }
+
+      // Identical rendering/save logic to what used to live inline in the
+      // dashboard's events list -- moved here since this page now owns
+      // score entry, one roster per golf event instead of one at a time.
+      function renderRoster(container, eventId, roster) {
+        if (roster.length === 0) {
+          container.innerHTML = '<p class="empty-note">Nog geen deelnemers die komen.</p>';
+          return;
+        }
+        container.innerHTML = `
+          <div class="player-row player-row-header">
+            <span>Speler</span>
+            <span>Holes</span>
+            <span>Totaal slagen</span>
+            <span>Handicap</span>
+            <span></span>
+          </div>
+          ${roster
+            .map(
+              (p) => `
+            <div class="player-row" data-member="${esc(p.member_id)}">
+              <strong>${esc(p.name)}</strong>
+              <input type="number" min="0" class="gs-holes" value="${p.holes_played ?? ""}" />
+              <input type="number" class="gs-shots" value="${p.total_shots ?? ""}" />
+              <input type="number" step="0.1" class="gs-handicap" value="${p.handicap ?? ""}" />
+              <input type="date" class="gs-date" value="${p.played_on ?? ""}" />
+            </div>`,
+            )
+            .join("")}
+          <p class="status gs-status"></p>
+        `;
+
+        const status = container.querySelector(".gs-status");
+        container.querySelectorAll(".player-row[data-member]").forEach((row) => {
+          const member_id = row.dataset.member;
+          row.querySelectorAll("input").forEach((input) => {
+            input.addEventListener("change", async () => {
+              status.textContent = "Opslaan...";
+              status.className = "status";
+              const num = (el) => (el.value === "" ? null : Number(el.value));
+              try {
+                await call("save-golf-score", {
+                  method: "POST",
+                  body: {
+                    event_id: eventId,
+                    member_id,
+                    holes_played: num(row.querySelector(".gs-holes")),
+                    total_shots: num(row.querySelector(".gs-shots")),
+                    handicap: num(row.querySelector(".gs-handicap")),
+                    played_on: row.querySelector(".gs-date").value || null,
+                  },
+                });
+                status.textContent = "Opgeslagen.";
+                status.className = "status ok";
+              } catch (err) {
+                status.textContent = err.message;
+                status.className = "status error";
+              }
+            });
+          });
+        });
+      }
+
+      async function loadAll() {
+        const events = await call("list-events");
+        const golfEvents = events
+          .filter((e) => e.type === "golf")
+          // Newest evening first -- this is meant to answer "what's the
+          // latest update" at a glance, not double as an upcoming-events
+          // calendar (that's what the events list on the dashboard is for).
+          .sort((a, b) => new Date(b.starts_at).getTime() - new Date(a.starts_at).getTime());
+
+        const el = document.getElementById("events-scoreboard");
+        if (golfEvents.length === 0) {
+          el.innerHTML = '<p class="empty-note">Nog geen golfevents.</p>';
+          return;
+        }
+
+        el.innerHTML = golfEvents
+          .map(
+            (ev, i) => `
+          ${i > 0 ? '<hr class="section-divider" />' : ""}
+          <h3>${esc(ev.name)} <span class="meta">— ${fmtDate(ev.starts_at)}</span></h3>
+          <div class="roster" data-event="${esc(ev.id)}"></div>
+        `,
+          )
+          .join("");
+
+        for (const ev of golfEvents) {
+          const container = el.querySelector(`.roster[data-event="${ev.id}"]`);
+          try {
+            const roster = await call("get-event-scoreboard", { query: { event_id: ev.id } });
+            renderRoster(container, ev.id, roster);
+          } catch (err) {
+            container.innerHTML = `<p class="status error">${esc(err.message)}</p>`;
+          }
+        }
+      }
+
+      document.getElementById("sign-out").addEventListener("click", async () => {
+        await supabaseClient.auth.signOut();
+        window.location.href = "../login/index.html";
+      });
+
+      (async () => {
+        const { data } = await supabaseClient.auth.getSession();
+        if (!data.session) {
+          window.location.href = "../login/index.html";
+        } else {
+          document.getElementById("who-email").textContent = data.session.user.email;
+          try {
+            await loadAll();
+            document.getElementById("loading-note").hidden = true;
+            document.getElementById("scoreboard-content").hidden = false;
+          } catch (e) {
+            if (e.status === 403) {
+              document.getElementById("loading-note").hidden = true;
+              document.getElementById("access-denied").hidden = false;
+            } else {
+              const note = document.getElementById("loading-note");
+              note.textContent = `Er ging iets mis: ${e.message}. Ververs de pagina om het opnieuw te proberen.`;
+              note.className = "status error";
+            }
+          }
+        }
+      })();
+    </script>
+  </body>
+</html>
