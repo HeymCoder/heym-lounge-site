@@ -71,71 +71,14 @@
           </div>
         </div>
 
-        <div class="other-events">
-          <h3>Andere Events</h3>
-          <div id="events-list">
-            <p class="empty-note">Events laden...</p>
-          </div>
-        </div>
       </section>
     </main>
 
     <div id="footer-mount"></div>
 
-    <script src="./shared/config.js"></script>
     <script src="./shared/footer.js"></script>
     <script>
-      // submit-interest is a public endpoint (no login needed) -- just an
-      // apikey header, same as the Supabase client would send. Only loads
-      // shared/config.js above, not shared/supabase-client.js -- that would
-      // drag in the vendored supabase-js bundle for a page that only ever
-      // makes one plain fetch() call.
-      const PUBLISHABLE_KEY = SUPABASE_PUBLISHABLE_KEY;
-
       mountFooter("./");
-
-      // "Andere Events" only ever shows social events (borrels) -- TGL/golf
-      // is its own static block above with a Login button, not an
-      // itemised list. The backend still strips name/location for golf rows
-      // in this response regardless, so there's nothing sensitive to filter
-      // out client-side even if that ever changes.
-      (async () => {
-        const list = document.getElementById("events-list");
-        const dateFmt = new Intl.DateTimeFormat("nl-NL", { day: "numeric", month: "long", year: "numeric" });
-        try {
-          const res = await fetch(`${FUNCTIONS_URL}/list-public-events`, {
-            headers: { apikey: PUBLISHABLE_KEY },
-          });
-          if (!res.ok) throw new Error("Events konden niet geladen worden");
-          const events = (await res.json()).filter((event) => event.type !== "golf");
-
-          if (!events.length) {
-            list.innerHTML = '<p class="empty-note">Binnenkort meer events.</p>';
-            return;
-          }
-
-          list.innerHTML = events
-            .map((event) => {
-              const when = dateFmt.format(new Date(event.starts_at));
-              return `
-                <div class="list-item">
-                  <div>
-                    <strong>${escapeHtml(event.name)}</strong>
-                    <div class="meta">${when} · ${escapeHtml(event.location)}</div>
-                  </div>
-                </div>`;
-            })
-            .join("");
-        } catch (err) {
-          list.innerHTML = '<p class="empty-note">Events konden niet geladen worden.</p>';
-        }
-      })();
-
-      function escapeHtml(str) {
-        const div = document.createElement("div");
-        div.textContent = str ?? "";
-        return div.innerHTML;
-      }
     </script>
   </body>
 </html>

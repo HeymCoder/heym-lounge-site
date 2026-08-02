@@ -122,9 +122,9 @@
                 <div class="rsvp-status">${esc(RSVP_LABELS[ev.rsvp_status] ?? ev.rsvp_status)}</div>
               </div>
               <div class="actions">
-                <button class="small${ev.rsvp_status === "yes" ? " active" : ""}" data-action="yes">Ja, ik kom</button>
+                <button class="small${ev.rsvp_status === "yes" ? " active" : ""}" data-action="yes">Ja, ik ben erbij</button>
                 <button class="small danger${ev.rsvp_status === "no" ? " active" : ""}" data-action="no">Nee, ik kan niet</button>
-                ${ev.type === "golf" ? '<button class="small" data-action="scoreboard">Bekijk scorebord</button>' : ""}
+                ${ev.type === "golf" ? '<button class="small" data-action="scoreboard">Scorebord</button>' : ""}
               </div>
             </div>
             <div class="scoreboard" hidden></div>
@@ -152,25 +152,29 @@
             scoreboardBtn.addEventListener("click", async () => {
               if (!board.hidden) {
                 board.hidden = true;
-                scoreboardBtn.textContent = "Bekijk scorebord";
                 return;
               }
               scoreboardBtn.disabled = true;
               try {
-                const teams = await call("get-event-scoreboard", { query: { event_id: ev.id } });
-                board.innerHTML = teams.length
-                  ? teams
-                      .map((t) => {
-                        const names = (t.golf_team_members ?? [])
-                          .map((m) => esc(m.members?.name ?? ""))
-                          .join(", ");
-                        const score = t.golf_scores?.score;
-                        return `<div class="list-item"><div>${esc(t.label ?? "Team")} — ${names}</div><div>${score ?? "-"}</div></div>`;
+                // Roster is every confirmed "yes" participant, auto-populated
+                // server-side -- not something entered here. Score fields are
+                // null until an organiser fills them in on the dashboard.
+                const players = await call("get-event-scoreboard", { query: { event_id: ev.id } });
+                board.innerHTML = players.length
+                  ? players
+                      .map((p) => {
+                        const meta = [
+                          p.holes_played ? `${esc(p.holes_played)} holes` : "",
+                          p.handicap != null ? `hcp ${esc(p.handicap)}` : "",
+                          p.played_on ? esc(p.played_on) : "",
+                        ]
+                          .filter(Boolean)
+                          .join(" · ");
+                        return `<div class="list-item"><div><strong>${esc(p.name)}</strong><div class="meta">${meta}</div></div><div>${p.total_shots ?? "-"}</div></div>`;
                       })
                       .join("")
-                  : '<p class="empty-note">Nog geen scores ingevoerd.</p>';
+                  : '<p class="empty-note">Nog geen deelnemers bevestigd.</p>';
                 board.hidden = false;
-                scoreboardBtn.textContent = "Verberg scorebord";
               } catch (e) {
                 alert(e.message);
               } finally {

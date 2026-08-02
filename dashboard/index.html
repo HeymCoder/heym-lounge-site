@@ -70,19 +70,6 @@
           </form>
         </section>
 
-        <section class="dash-section">
-          <h2>Golfscores invoeren</h2>
-          <form id="score-form" class="card">
-            <label for="score-event">Golfevent</label>
-            <select id="score-event"></select>
-
-            <div id="teams-container"></div>
-            <button type="button" class="small" id="add-team">+ Team toevoegen</button>
-
-            <button class="primary" type="submit">Scores opslaan</button>
-            <p id="score-status" class="status"></p>
-          </form>
-        </section>
       </div>
     </main>
 
@@ -218,15 +205,6 @@
             el.appendChild(buildEventRow(ev));
           }
         }
-        updateScoreEventOptions(events);
-      }
-
-      function updateScoreEventOptions(events) {
-        const scoreSelect = document.getElementById("score-event");
-        const golfEvents = events.filter((e) => e.type === "golf");
-        scoreSelect.innerHTML = golfEvents.length
-          ? golfEvents.map((e) => `<option value="${esc(e.id)}">${esc(e.name)} — ${fmtDate(e.starts_at)}</option>`).join("")
-          : '<option value="">Geen golfevents</option>';
       }
 
       // datetime-local inputs want local wall-clock time with no timezone --
@@ -236,6 +214,69 @@
         const d = new Date(iso);
         const pad = (n) => String(n).padStart(2, "0");
         return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      }
+
+      // Roster comes from get-event-scoreboard (every confirmed "yes"
+      // participant, auto-populated -- never manually added here). Each
+      // field auto-saves on change via save-golf-score; no separate save
+      // button, matching the dummy prototype this replaced.
+      function renderGolfScoreboard(container, eventId, roster) {
+        if (roster.length === 0) {
+          container.innerHTML = '<p class="empty-note">Nog geen deelnemers die komen.</p>';
+          return;
+        }
+        container.innerHTML = `
+          <div class="player-row player-row-header">
+            <span>Speler</span>
+            <span>Holes</span>
+            <span>Totaal slagen</span>
+            <span>Handicap</span>
+            <span>Datum</span>
+          </div>
+          ${roster
+            .map(
+              (p) => `
+            <div class="player-row" data-member="${esc(p.member_id)}">
+              <strong>${esc(p.name)}</strong>
+              <input type="number" min="0" class="gs-holes" value="${p.holes_played ?? ""}" />
+              <input type="number" class="gs-shots" value="${p.total_shots ?? ""}" />
+              <input type="number" step="0.1" class="gs-handicap" value="${p.handicap ?? ""}" />
+              <input type="date" class="gs-date" value="${p.played_on ?? ""}" />
+            </div>`,
+            )
+            .join("")}
+          <p class="status gs-status"></p>
+        `;
+
+        const status = container.querySelector(".gs-status");
+        container.querySelectorAll(".player-row[data-member]").forEach((row) => {
+          const member_id = row.dataset.member;
+          row.querySelectorAll("input").forEach((input) => {
+            input.addEventListener("change", async () => {
+              status.textContent = "Opslaan...";
+              status.className = "status";
+              const num = (el) => (el.value === "" ? null : Number(el.value));
+              try {
+                await call("save-golf-score", {
+                  method: "POST",
+                  body: {
+                    event_id: eventId,
+                    member_id,
+                    holes_played: num(row.querySelector(".gs-holes")),
+                    total_shots: num(row.querySelector(".gs-shots")),
+                    handicap: num(row.querySelector(".gs-handicap")),
+                    played_on: row.querySelector(".gs-date").value || null,
+                  },
+                });
+                status.textContent = "Opgeslagen.";
+                status.className = "status ok";
+              } catch (err) {
+                status.textContent = err.message;
+                status.className = "status error";
+              }
+            });
+          });
+        });
       }
 
       // One row = the summary line (unchanged) plus a collapsed edit panel:
@@ -273,8 +314,10 @@
             </div>
             <div class="actions">
               <button type="button" class="small" data-action="edit">Bewerken</button>
+              ${ev.type === "golf" ? '<button type="button" class="small" data-action="scoreboard">Scorebord</button>' : ""}
             </div>
           </div>
+          ${ev.type === "golf" ? '<div class="golf-scoreboard" hidden></div>' : ""}
           <div class="event-edit" ${startOpen ? "" : "hidden"}>
             <form class="card">
               <label>Naam</label>
@@ -398,6 +441,27 @@
 
         closeButton.addEventListener("click", closePanel);
 
+        // Loaded once per row, not re-fetched on every toggle -- the save
+        // handlers below keep the rendered rows in sync with what was just
+        // saved, so there's nothing to refresh by reopening.
+        const scoreboardButton = row.querySelector('[data-action="scoreboard"]');
+        const scoreboardPanel = row.querySelector(".golf-scoreboard");
+        if (scoreboardButton && scoreboardPanel) {
+          let loaded = false;
+          scoreboardButton.addEventListener("click", async () => {
+            scoreboardPanel.hidden = !scoreboardPanel.hidden;
+            if (scoreboardPanel.hidden || loaded) return;
+            scoreboardPanel.innerHTML = '<p class="empty-note">Laden...</p>';
+            try {
+              const roster = await call("get-event-scoreboard", { query: { event_id: ev.id } });
+              renderGolfScoreboard(scoreboardPanel, ev.id, roster);
+              loaded = true;
+            } catch (err) {
+              scoreboardPanel.innerHTML = `<p class="status error">${esc(err.message)}</p>`;
+            }
+          });
+        }
+
         // A confirm dialog, not a one-click button -- deleting cascades to
         // every RSVP, golf team and score attached to this event (see
         // delete_event's on-delete-cascade FKs) and can't be undone, unlike
@@ -442,11 +506,8 @@
             // full loadAll() -- that rebuilds every row collapsed, which
             // would close this panel right when the organiser wants to see
             // the save actually took effect. Other rows don't need
-            // refreshing (nothing about them changed); the golf
-            // score-event dropdown might (this event's own name/date), so
-            // that's refreshed too.
+            // refreshing since nothing about them changed.
             const events = await call("list-events");
-            updateScoreEventOptions(events);
             const updated = events.find((e2) => e2.id === ev.id);
             const newRow = buildEventRow(updated, { startOpen: true });
             row.replaceWith(newRow);
@@ -494,27 +555,6 @@
           `,
           )
           .join("");
-      }
-
-      function addTeamRow() {
-        const container = document.getElementById("teams-container");
-        const row = document.createElement("div");
-        row.className = "team-row";
-        row.innerHTML = `
-          <div class="team-row-header">
-            <input placeholder="Teamnaam (optioneel)" class="team-label" />
-            <button type="button" class="small danger remove-team">Verwijderen</button>
-          </div>
-          <div class="checkbox-grid team-members">
-            ${members
-              .map((m) => `<label><input type="checkbox" value="${esc(m.id)}" /> ${esc(m.name)}</label>`)
-              .join("")}
-          </div>
-          <label>Score</label>
-          <input type="number" class="team-score" required />
-        `;
-        row.querySelector(".remove-team").addEventListener("click", () => row.remove());
-        container.appendChild(row);
       }
 
       async function loadAll() {
@@ -568,41 +608,6 @@
           status.textContent = "Event aangemaakt.";
           status.className = "status ok";
           await loadAll();
-        } catch (err) {
-          status.textContent = err.message;
-          status.className = "status error";
-        }
-      });
-
-      document.getElementById("add-team").addEventListener("click", addTeamRow);
-
-      document.getElementById("score-form").addEventListener("submit", async (e) => {
-        e.preventDefault();
-        const status = document.getElementById("score-status");
-        const event_id = document.getElementById("score-event").value;
-        if (!event_id) {
-          status.textContent = "Geen golfevent geselecteerd.";
-          status.className = "status error";
-          return;
-        }
-        const teamRows = [...document.querySelectorAll(".team-row")];
-        if (teamRows.length === 0) {
-          status.textContent = "Voeg minstens één team toe.";
-          status.className = "status error";
-          return;
-        }
-        const teams = teamRows.map((row) => ({
-          label: row.querySelector(".team-label").value || null,
-          member_ids: [...row.querySelectorAll(".team-members input:checked")].map((i) => i.value),
-          score: Number(row.querySelector(".team-score").value),
-        }));
-        status.textContent = "Bezig...";
-        status.className = "status";
-        try {
-          await call("enter-golf-score", { method: "POST", body: { event_id, teams } });
-          document.getElementById("teams-container").innerHTML = "";
-          status.textContent = "Scores opgeslagen.";
-          status.className = "status ok";
         } catch (err) {
           status.textContent = err.message;
           status.className = "status error";
