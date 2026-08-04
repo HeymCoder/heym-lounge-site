@@ -22,43 +22,7 @@
       <div id="page-content" hidden>
         <section class="dash-section">
           <h2>Nieuws</h2>
-          <p class="mockup-note">
-            Mock-up ter illustratie — dit zijn voorbeeldartikelen, geen echt nieuws.
-          </p>
-
-          <div class="card">
-            <div class="meta">Voorbeelddatum · 1 min lezen</div>
-            <h3>Heym, Heym Renovatie en Heym Verduurzaming gaan verder als één merk</h3>
-            <p>
-              Korte introductietekst van het artikel komt hier. Dit is
-              voorbeeldtekst zodat je een idee krijgt van de opmaak: een paar
-              zinnen samenvatting, gevolgd door een link naar het volledige
-              bericht.
-            </p>
-            <a class="small" href="#">Lees meer</a>
-          </div>
-
-          <div class="card">
-            <div class="meta">Voorbeelddatum · 2 min lezen</div>
-            <h3>TGL Wintercompetitie 2026&ndash;2027 van start</h3>
-            <p>
-              Ook hier: voorbeeldtekst. Denk aan een korte terugblik op een
-              speelavond, een aankondiging van de volgende datum, of een
-              uitslag.
-            </p>
-            <a class="small" href="#">Lees meer</a>
-          </div>
-
-          <div class="card">
-            <div class="meta">Voorbeelddatum · 1 min lezen</div>
-            <h3>Nieuwe stap in verduurzaming: wat merkt u ervan?</h3>
-            <p>
-              Nog een voorbeeld — bedoeld om te laten zien hoe drie berichten
-              er samen uitzien in een lijst, met ruimte voor een kop, een
-              korte intro en een lees-meer link per artikel.
-            </p>
-            <a class="small" href="#">Lees meer</a>
-          </div>
+          <div id="news-list"></div>
         </section>
 
         <section class="dash-section">
@@ -98,24 +62,122 @@
     <script src="../shared/supabase-client.js"></script>
     <script src="../shared/footer.js"></script>
     <script>
+      const PUBLISHABLE_KEY = SUPABASE_PUBLISHABLE_KEY;
+
       mountFooter("../");
+
+      // Same fresh-session-per-call pattern as index.html (P6) -- no token
+      // cached in a plain variable at boot.
+      async function call(name, { method = "GET", body, query } = {}) {
+        const {
+          data: { session },
+        } = await supabaseClient.auth.getSession();
+        if (!session) {
+          window.location.href = "../login/index.html";
+          throw new Error("Session expired");
+        }
+        let url = `${FUNCTIONS_URL}/${name}`;
+        if (query) url += "?" + new URLSearchParams(query).toString();
+        const res = await fetch(url, {
+          method,
+          headers: {
+            apikey: PUBLISHABLE_KEY,
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
+          },
+          body: body ? JSON.stringify(body) : undefined,
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          const error = new Error(data.error || `${name} failed (${res.status})`);
+          error.status = res.status;
+          throw error;
+        }
+        return data;
+      }
+
+      // Article title/excerpt/body are organiser-authored but still go
+      // through esc() before touching innerHTML -- same reasoning as every
+      // other server value on this site (see P1: this is what stored XSS
+      // looked like before that rule existed everywhere).
+      function esc(value) {
+        return String(value ?? "").replace(
+          /[&<>"']/g,
+          (c) =>
+            ({
+              "&": "&amp;",
+              "<": "&lt;",
+              ">": "&gt;",
+              '"': "&quot;",
+              "'": "&#39;",
+            })[c],
+        );
+      }
+
+      // Escaped first, so the only literal HTML in the result is the <br>
+      // this function itself inserts -- article bodies are plain text with
+      // real line breaks, not rich HTML.
+      function escWithBreaks(value) {
+        return esc(value).replace(/\n/g, "<br />");
+      }
+
+      function fmtArticleDate(iso) {
+        return new Date(iso).toLocaleDateString("nl-NL", {
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        });
+      }
+
+      function renderNews(articles) {
+        const el = document.getElementById("news-list");
+        if (articles.length === 0) {
+          el.innerHTML = '<p class="empty-note">Nog geen nieuws.</p>';
+          return;
+        }
+        el.innerHTML = "";
+        for (const a of articles) {
+          const card = document.createElement("div");
+          card.className = "card";
+          card.innerHTML = `
+            <div class="meta">${fmtArticleDate(a.created_at)}</div>
+            <h3>${esc(a.title)}</h3>
+            <p>${esc(a.excerpt)}</p>
+            <p class="article-body" hidden>${escWithBreaks(a.body)}</p>
+            <a class="small" href="#" data-action="toggle">Lees meer</a>
+          `;
+          const toggle = card.querySelector('[data-action="toggle"]');
+          const bodyEl = card.querySelector(".article-body");
+          toggle.addEventListener("click", (e) => {
+            e.preventDefault();
+            bodyEl.hidden = !bodyEl.hidden;
+            toggle.textContent = bodyEl.hidden ? "Lees meer" : "Lees minder";
+          });
+          el.appendChild(card);
+        }
+      }
 
       document.getElementById("sign-out").addEventListener("click", async () => {
         await supabaseClient.auth.signOut();
         window.location.href = "../login/index.html";
       });
 
-      // Same session-gate pattern as index.html (P6) -- this page's content
-      // is static mockup data, not an API call, but access should still
-      // require a real login like the rest of /member/.
       (async () => {
         const { data } = await supabaseClient.auth.getSession();
         if (!data.session) {
           window.location.href = "../login/index.html";
         } else {
           document.getElementById("who-email").textContent = data.session.user.email;
-          document.getElementById("loading-note").hidden = true;
-          document.getElementById("page-content").hidden = false;
+          try {
+            const articles = await call("list-news");
+            renderNews(articles);
+            document.getElementById("loading-note").hidden = true;
+            document.getElementById("page-content").hidden = false;
+          } catch (e) {
+            const note = document.getElementById("loading-note");
+            note.textContent = `Er ging iets mis: ${e.message}. Ververs de pagina om het opnieuw te proberen.`;
+            note.className = "status error";
+          }
         }
       })();
     </script>

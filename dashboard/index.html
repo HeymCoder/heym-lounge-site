@@ -70,6 +70,26 @@
           </form>
         </section>
 
+        <section class="dash-section">
+          <h2>Nieuws</h2>
+          <div id="news-list"></div>
+
+          <h3>Nieuw artikel</h3>
+          <form id="create-news-form" class="card">
+            <label for="news-title">Titel</label>
+            <input id="news-title" required />
+
+            <label for="news-excerpt">Korte samenvatting</label>
+            <textarea id="news-excerpt" required></textarea>
+
+            <label for="news-body">Volledige tekst</label>
+            <textarea id="news-body" required></textarea>
+
+            <button class="primary" type="submit">Artikel plaatsen</button>
+            <p id="create-news-status" class="status"></p>
+          </form>
+        </section>
+
       </div>
     </main>
 
@@ -143,6 +163,14 @@
           month: "short",
           hour: "2-digit",
           minute: "2-digit",
+        });
+      }
+
+      function fmtArticleDate(iso) {
+        return new Date(iso).toLocaleDateString("nl-NL", {
+          day: "numeric",
+          month: "long",
+          year: "numeric",
         });
       }
 
@@ -480,17 +508,124 @@
           .join("");
       }
 
+      function renderNews(articles) {
+        const el = document.getElementById("news-list");
+        if (articles.length === 0) {
+          el.innerHTML = '<p class="empty-note">Nog geen artikelen.</p>';
+          return;
+        }
+        el.innerHTML = "";
+        for (const a of articles) {
+          el.appendChild(buildNewsRow(a));
+        }
+      }
+
+      // Same collapsed-edit-panel shape as buildEventRow, just with fewer
+      // fields -- an article has no invite list to manage.
+      function buildNewsRow(article) {
+        const row = document.createElement("div");
+        row.className = "list-item";
+        row.style.flexDirection = "column";
+        row.style.alignItems = "stretch";
+
+        row.innerHTML = `
+          <div style="display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap">
+            <div>
+              <strong>${esc(article.title)}</strong>
+              <div class="meta">${fmtArticleDate(article.created_at)}</div>
+            </div>
+            <div class="actions">
+              <button type="button" class="small" data-action="edit">Bewerken</button>
+            </div>
+          </div>
+          <div class="news-edit" hidden>
+            <form class="card">
+              <label>Titel</label>
+              <input class="ne-title" value="${esc(article.title)}" required />
+
+              <label>Korte samenvatting</label>
+              <textarea class="ne-excerpt" required>${esc(article.excerpt)}</textarea>
+
+              <label>Volledige tekst</label>
+              <textarea class="ne-body" required>${esc(article.body)}</textarea>
+
+              <div style="display: flex; gap: 0.5rem; align-items: center">
+                <button class="primary" type="submit" style="flex: 1">Wijzigingen opslaan</button>
+                <button type="button" class="small" data-action="close">Sluiten</button>
+                <button type="button" class="small danger" data-action="delete">Verwijderen</button>
+              </div>
+              <p class="status ne-status"></p>
+            </form>
+          </div>
+        `;
+
+        const editPanel = row.querySelector(".news-edit");
+        const editButton = row.querySelector('[data-action="edit"]');
+        const closeButton = row.querySelector('[data-action="close"]');
+        const deleteButton = row.querySelector('[data-action="delete"]');
+
+        editButton.addEventListener("click", () => {
+          editPanel.hidden = !editPanel.hidden;
+          editButton.textContent = editPanel.hidden ? "Bewerken" : "Verbergen";
+        });
+
+        closeButton.addEventListener("click", () => {
+          editPanel.hidden = true;
+          editButton.textContent = "Bewerken";
+        });
+
+        deleteButton.addEventListener("click", async () => {
+          if (!confirm(`Weet je zeker dat je "${article.title}" wilt verwijderen? Dit kan niet ongedaan worden gemaakt.`)) {
+            return;
+          }
+          deleteButton.disabled = true;
+          try {
+            await call("delete-news", { method: "POST", body: { id: article.id } });
+            await loadAll();
+          } catch (err) {
+            alert(err.message);
+            deleteButton.disabled = false;
+          }
+        });
+
+        row.querySelector("form").addEventListener("submit", async (e) => {
+          e.preventDefault();
+          const status = row.querySelector(".ne-status");
+          status.textContent = "Bezig...";
+          status.className = "status";
+          try {
+            await call("update-news", {
+              method: "POST",
+              body: {
+                id: article.id,
+                title: row.querySelector(".ne-title").value,
+                excerpt: row.querySelector(".ne-excerpt").value,
+                body: row.querySelector(".ne-body").value,
+              },
+            });
+            await loadAll();
+          } catch (err) {
+            status.textContent = err.message;
+            status.className = "status error";
+          }
+        });
+
+        return row;
+      }
+
       async function loadAll() {
-        const [subs, mem, events] = await Promise.all([
+        const [subs, mem, events, news] = await Promise.all([
           call("list-interest-submissions"),
           call("list-members"),
           call("list-events"),
+          call("list-news"),
         ]);
         members = mem;
         renderSubmissions(subs);
         renderMembers(mem);
         renderMemberCheckboxes();
         renderEvents(events);
+        renderNews(news);
       }
 
       // Golf's real cap is 8 (see rules.md) -- prefill it as a convenience
@@ -529,6 +664,30 @@
           e.target.reset();
           document.getElementById("ev-location").value = "Heym Lounge";
           status.textContent = "Event aangemaakt.";
+          status.className = "status ok";
+          await loadAll();
+        } catch (err) {
+          status.textContent = err.message;
+          status.className = "status error";
+        }
+      });
+
+      document.getElementById("create-news-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const status = document.getElementById("create-news-status");
+        status.textContent = "Bezig...";
+        status.className = "status";
+        try {
+          await call("create-news", {
+            method: "POST",
+            body: {
+              title: document.getElementById("news-title").value,
+              excerpt: document.getElementById("news-excerpt").value,
+              body: document.getElementById("news-body").value,
+            },
+          });
+          e.target.reset();
+          status.textContent = "Artikel geplaatst.";
           status.className = "status ok";
           await loadAll();
         } catch (err) {
