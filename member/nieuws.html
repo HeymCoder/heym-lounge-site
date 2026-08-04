@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="nl">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Nieuws — Heym Lounge</title>
+    <link rel="stylesheet" href="../shared/styles.css" />
+  </head>
+  <body>
+    <header class="dash">
+      <a href="../index.html"><img src="../assets/heym-logo.png" alt="Heym" /></a>
+      <div class="who">
+        <a class="small" href="./index.html">← Mijn events</a>
+        <span id="who-email"></span>
+        <button class="small" id="sign-out">Uitloggen</button>
+      </div>
+    </header>
+
+    <main class="dash-wrap">
+      <p id="loading-note">Laden...</p>
+
+      <div id="page-content" hidden>
+        <section class="dash-section">
+          <h2>Nieuws</h2>
+          <p class="mockup-note">
+            Mock-up ter illustratie — dit zijn voorbeeldartikelen, geen echt nieuws.
+          </p>
+
+          <div class="card">
+            <div class="meta">Voorbeelddatum · 1 min lezen</div>
+            <h3>Heym, Heym Renovatie en Heym Verduurzaming gaan verder als één merk</h3>
+            <p>
+              Korte introductietekst van het artikel komt hier. Dit is
+              voorbeeldtekst zodat je een idee krijgt van de opmaak: een paar
+              zinnen samenvatting, gevolgd door een link naar het volledige
+              bericht.
+            </p>
+            <a class="small" href="#">Lees meer</a>
+          </div>
+
+          <div class="card">
+            <div class="meta">Voorbeelddatum · 2 min lezen</div>
+            <h3>TGL Wintercompetitie 2026&ndash;2027 van start</h3>
+            <p>
+              Ook hier: voorbeeldtekst. Denk aan een korte terugblik op een
+              speelavond, een aankondiging van de volgende datum, of een
+              uitslag.
+            </p>
+            <a class="small" href="#">Lees meer</a>
+          </div>
+
+          <div class="card">
+            <div class="meta">Voorbeelddatum · 1 min lezen</div>
+            <h3>Nieuwe stap in verduurzaming: wat merkt u ervan?</h3>
+            <p>
+              Nog een voorbeeld — bedoeld om te laten zien hoe drie berichten
+              er samen uitzien in een lijst, met ruimte voor een kop, een
+              korte intro en een lees-meer link per artikel.
+            </p>
+            <a class="small" href="#">Lees meer</a>
+          </div>
+        </section>
+
+        <section class="dash-section">
+          <h2>Onze huidige projecten</h2>
+          <p class="mockup-note">
+            Mock-up — hier komen straks echte foto's en projectnamen te staan.
+          </p>
+
+          <div class="photo-gallery" aria-label="Foto's van huidige projecten">
+            <div class="photo-gallery-track">
+              <div class="gallery-item">
+                <div class="photo-placeholder"><span>🏗️</span>Foto volgt</div>
+                <span class="caption">Gevelrenovatie — voorbeeldproject</span>
+              </div>
+              <div class="gallery-item">
+                <div class="photo-placeholder"><span>🏗️</span>Foto volgt</div>
+                <span class="caption">Kozijnvervanging — voorbeeldproject</span>
+              </div>
+              <div class="gallery-item">
+                <div class="photo-placeholder"><span>🏗️</span>Foto volgt</div>
+                <span class="caption">Voegwerk — voorbeeldproject</span>
+              </div>
+              <div class="gallery-item">
+                <div class="photo-placeholder"><span>🏗️</span>Foto volgt</div>
+                <span class="caption">Dakisolatie — voorbeeldproject</span>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <div id="footer-mount"></div>
+
+    <script src="../shared/vendor/supabase-js.js"></script>
+    <script src="../shared/config.js"></script>
+    <script src="../shared/supabase-client.js"></script>
+    <script src="../shared/footer.js"></script>
+    <script>
+      mountFooter("../");
+
+      document.getElementById("sign-out").addEventListener("click", async () => {
+        await supabaseClient.auth.signOut();
+        window.location.href = "../login/index.html";
+      });
+
+      // Same session-gate pattern as index.html (P6) -- this page's content
+      // is static mockup data, not an API call, but access should still
+      // require a real login like the rest of /member/.
+      (async () => {
+        const { data } = await supabaseClient.auth.getSession();
+        if (!data.session) {
+          window.location.href = "../login/index.html";
+        } else {
+          document.getElementById("who-email").textContent = data.session.user.email;
+          document.getElementById("loading-note").hidden = true;
+          document.getElementById("page-content").hidden = false;
+        }
+      })();
+    </script>
+  </body>
+</html>

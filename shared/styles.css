@@ -438,9 +438,46 @@ header.dash .who {
   flex-wrap: wrap;
 }
 
+.meta,
 .list-item .meta {
   font-size: 0.85rem;
   color: #6b665c;
+}
+
+.mockup-note {
+  font-size: 0.85rem;
+  color: var(--heym-blue-mid);
+  font-style: italic;
+  margin: -0.5rem 0 1rem;
+}
+
+.dash-section .card {
+  margin-bottom: 1rem;
+}
+
+.dash-section .card h3 {
+  margin: 0.3rem 0 0.5rem;
+  font-size: 1.05rem;
+  color: var(--heym-navy);
+}
+
+.gallery-item {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+  width: 240px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.gallery-item .photo-placeholder {
+  width: 100%;
+}
+
+.gallery-item .caption {
+  font-size: 0.85rem;
+  color: #6b665c;
+  text-align: center;
 }
 
 .list-item .actions {
