@@ -520,19 +520,58 @@
         }
       }
 
+      // Reads a File as a base64 string (no data: prefix) -- upload-news-photo
+      // takes JSON with a base64 body rather than multipart, so this is all
+      // the encoding needed on the client side.
+      function readFileAsBase64(file) {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result).slice(reader.result.indexOf(",") + 1));
+          reader.onerror = () => reject(reader.error);
+          reader.readAsDataURL(file);
+        });
+      }
+
+      function renderPhotoThumbs(container, photos, onDelete) {
+        if (photos.length === 0) {
+          container.innerHTML = '<p class="empty-note">Nog geen foto\'s.</p>';
+          return;
+        }
+        container.innerHTML = photos
+          .map(
+            (p) => `
+            <div class="photo-thumb-item" data-photo-id="${esc(p.id)}">
+              <img src="${esc(p.url)}" alt="" />
+              ${p.caption ? `<span class="caption">${esc(p.caption)}</span>` : ""}
+              <button type="button" class="small danger" data-remove-photo="${esc(p.id)}">Verwijderen</button>
+            </div>`,
+          )
+          .join("");
+        container.querySelectorAll("[data-remove-photo]").forEach((btn) => {
+          btn.addEventListener("click", () => onDelete(btn.dataset.removePhoto, btn));
+        });
+      }
+
       // Same collapsed-edit-panel shape as buildEventRow, just with fewer
-      // fields -- an article has no invite list to manage.
+      // fields -- an article has no invite list to manage. Photos are kept
+      // as local mutable state (article.photos) and re-rendered in place on
+      // upload/delete, same reasoning as buildEventRow's `declined` set --
+      // avoids a full loadAll() that would close the panel being used.
       function buildNewsRow(article) {
         const row = document.createElement("div");
         row.className = "list-item";
         row.style.flexDirection = "column";
         row.style.alignItems = "stretch";
 
+        const statusLabel = article.published_at
+          ? `Gepubliceerd op ${fmtArticleDate(article.published_at)}`
+          : `Aangemaakt op ${fmtArticleDate(article.created_at)}`;
+
         row.innerHTML = `
           <div style="display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap">
             <div>
-              <strong>${esc(article.title)}</strong>
-              <div class="meta">${fmtArticleDate(article.created_at)}</div>
+              <strong>${esc(article.title)}</strong>${article.published_at ? "" : '<span class="draft-badge">Concept</span>'}
+              <div class="meta">${statusLabel}</div>
             </div>
             <div class="actions">
               <button type="button" class="small" data-action="edit">Bewerken</button>
@@ -549,8 +588,26 @@
               <label>Volledige tekst</label>
               <textarea class="ne-body" required>${esc(article.body)}</textarea>
 
-              <div style="display: flex; gap: 0.5rem; align-items: center">
+              <label>Foto's</label>
+              <div class="photo-thumbs ne-photos"></div>
+              <div style="display: flex; gap: 0.75rem; align-items: flex-end; flex-wrap: wrap">
+                <div style="flex: 1; min-width: 180px">
+                  <label>Nieuwe foto</label>
+                  <input type="file" class="ne-photo-file" accept="image/*" />
+                </div>
+                <div style="flex: 1; min-width: 180px">
+                  <label>Onderschrift (optioneel)</label>
+                  <input class="ne-photo-caption" />
+                </div>
+                <button type="button" class="small ne-photo-add">Foto toevoegen</button>
+              </div>
+              <p class="status ne-photo-status"></p>
+
+              <div style="display: flex; gap: 0.5rem; align-items: center; margin-top: 1rem">
                 <button class="primary" type="submit" style="flex: 1">Wijzigingen opslaan</button>
+                <button type="button" class="small" data-action="toggle-publish">
+                  ${article.published_at ? "Terug naar concept" : "Publiceren"}
+                </button>
                 <button type="button" class="small" data-action="close">Sluiten</button>
                 <button type="button" class="small danger" data-action="delete">Verwijderen</button>
               </div>
@@ -563,6 +620,30 @@
         const editButton = row.querySelector('[data-action="edit"]');
         const closeButton = row.querySelector('[data-action="close"]');
         const deleteButton = row.querySelector('[data-action="delete"]');
+        const publishButton = row.querySelector('[data-action="toggle-publish"]');
+        const photosEl = row.querySelector(".ne-photos");
+        const photoFileInput = row.querySelector(".ne-photo-file");
+        const photoCaptionInput = row.querySelector(".ne-photo-caption");
+        const photoAddButton = row.querySelector(".ne-photo-add");
+        const photoStatus = row.querySelector(".ne-photo-status");
+
+        const photos = [...article.photos];
+
+        function refreshPhotos() {
+          renderPhotoThumbs(photosEl, photos, async (photoId, btn) => {
+            btn.disabled = true;
+            try {
+              await call("delete-news-photo", { method: "POST", body: { id: photoId } });
+              const idx = photos.findIndex((p) => p.id === photoId);
+              if (idx !== -1) photos.splice(idx, 1);
+              refreshPhotos();
+            } catch (err) {
+              alert(err.message);
+              btn.disabled = false;
+            }
+          });
+        }
+        refreshPhotos();
 
         editButton.addEventListener("click", () => {
           editPanel.hidden = !editPanel.hidden;
@@ -572,6 +653,53 @@
         closeButton.addEventListener("click", () => {
           editPanel.hidden = true;
           editButton.textContent = "Bewerken";
+        });
+
+        photoAddButton.addEventListener("click", async () => {
+          const file = photoFileInput.files[0];
+          if (!file) {
+            photoStatus.textContent = "Kies eerst een foto.";
+            photoStatus.className = "status error";
+            return;
+          }
+          photoAddButton.disabled = true;
+          photoStatus.textContent = "Bezig met uploaden...";
+          photoStatus.className = "status";
+          try {
+            const content_base64 = await readFileAsBase64(file);
+            const photo = await call("upload-news-photo", {
+              method: "POST",
+              body: {
+                article_id: article.id,
+                filename: file.name,
+                content_base64,
+                caption: photoCaptionInput.value || null,
+              },
+            });
+            photos.push(photo);
+            refreshPhotos();
+            photoFileInput.value = "";
+            photoCaptionInput.value = "";
+            photoStatus.textContent = "Foto toegevoegd.";
+            photoStatus.className = "status ok";
+          } catch (err) {
+            photoStatus.textContent = err.message;
+            photoStatus.className = "status error";
+          } finally {
+            photoAddButton.disabled = false;
+          }
+        });
+
+        publishButton.addEventListener("click", async () => {
+          publishButton.disabled = true;
+          try {
+            const name = article.published_at ? "unpublish-news" : "publish-news";
+            await call(name, { method: "POST", body: { id: article.id } });
+            await loadAll();
+          } catch (err) {
+            alert(err.message);
+            publishButton.disabled = false;
+          }
         });
 
         deleteButton.addEventListener("click", async () => {

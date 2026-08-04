@@ -458,6 +458,47 @@ header.dash .who {
   margin: -0.5rem 0 1rem;
 }
 
+.draft-badge {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #a3781f;
+  background: #fbf0d9;
+  border-radius: 999px;
+  padding: 0.15rem 0.6rem;
+  margin-left: 0.5rem;
+}
+
+.photo-thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin: 0.5rem 0 1rem;
+}
+
+.photo-thumb-item {
+  width: 130px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.photo-thumb-item img {
+  width: 130px;
+  height: 95px;
+  object-fit: cover;
+  border-radius: 8px;
+  display: block;
+  border: 1px solid var(--neutral-line);
+}
+
+.photo-thumb-item .caption {
+  font-size: 0.8rem;
+  color: #6b665c;
+}
+
 .dash-section .card {
   margin-bottom: 1rem;
 }

@@ -139,10 +139,30 @@
         for (const a of articles) {
           const card = document.createElement("div");
           card.className = "card";
+          const photosHtml =
+            a.photos && a.photos.length
+              ? `
+                <div class="photo-gallery" aria-label="Foto's bij dit artikel">
+                  <div class="photo-gallery-track">
+                    ${a.photos
+                      .map(
+                        (p) => `
+                      <div class="gallery-item">
+                        <img class="photo-real" src="${esc(p.url)}" alt="${esc(p.caption ?? "")}" />
+                        ${p.caption ? `<span class="caption">${esc(p.caption)}</span>` : ""}
+                      </div>`,
+                      )
+                      .join("")}
+                  </div>
+                </div>
+              `
+              : "";
+
           card.innerHTML = `
             <div class="meta">${fmtArticleDate(a.created_at)}</div>
             <h3>${esc(a.title)}</h3>
             <p>${esc(a.excerpt)}</p>
+            ${photosHtml}
             <p class="article-body" hidden>${escWithBreaks(a.body)}</p>
             <a class="small" href="#" data-action="toggle">Lees meer</a>
           `;
