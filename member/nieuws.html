@@ -11,8 +11,7 @@
       <a href="../index.html"><img src="../assets/heym-logo.png" alt="Heym" /></a>
       <div class="who">
         <a class="small" href="./index.html">← Mijn events</a>
-        <span id="who-email"></span>
-        <button class="small" id="sign-out">Uitloggen</button>
+        <div id="account-menu"></div>
       </div>
     </header>
 
@@ -61,6 +60,7 @@
     <script src="../shared/config.js"></script>
     <script src="../shared/supabase-client.js"></script>
     <script src="../shared/footer.js"></script>
+    <script src="../shared/account-menu.js"></script>
     <script>
       const PUBLISHABLE_KEY = SUPABASE_PUBLISHABLE_KEY;
 
@@ -177,17 +177,12 @@
         }
       }
 
-      document.getElementById("sign-out").addEventListener("click", async () => {
-        await supabaseClient.auth.signOut();
-        window.location.href = "../login/index.html";
-      });
-
       (async () => {
         const { data } = await supabaseClient.auth.getSession();
         if (!data.session) {
           window.location.href = "../login/index.html";
         } else {
-          document.getElementById("who-email").textContent = data.session.user.email;
+          mountAccountMenu("account-menu", data.session.user.email);
           try {
             const articles = await call("list-news");
             renderNews(articles);

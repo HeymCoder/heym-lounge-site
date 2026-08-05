@@ -423,6 +423,42 @@ header.dash .who {
   gap: 0.75rem;
 }
 
+.account-menu {
+  position: relative;
+}
+
+.account-popover {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  z-index: 10;
+  background: white;
+  border: 1px solid var(--neutral-line);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(26, 22, 15, 0.12);
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.6rem;
+  min-width: 220px;
+  text-align: left;
+}
+
+/* The `hidden` attribute's UA-stylesheet `display: none` and this class's
+   own `display: flex` above have equal specificity -- an author stylesheet
+   rule always wins that tie, so without this the popover would render
+   open even while `hidden` is true. */
+.account-popover[hidden] {
+  display: none;
+}
+
+.account-email {
+  font-size: 0.85rem;
+  color: var(--ink);
+  word-break: break-all;
+}
+
 .dash-section {
   margin-top: 2rem;
 }

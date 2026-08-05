@@ -73,15 +73,6 @@
           </div>
         </div>
 
-        <div id="signed-in" class="card" hidden>
-          <p>Je bent ingelogd.</p>
-          <a class="button" href="../member/index.html" style="color: white; background: var(--heym-navy)">
-            Naar mijn events
-          </a>
-          <p style="margin-top: 1rem">
-            <button class="link" id="sign-out">Uitloggen</button>
-          </p>
-        </div>
       </div>
     </div>
 
@@ -98,18 +89,18 @@
 
       const inviteForm = document.getElementById("invite-form");
       const loginForm = document.getElementById("login-form");
-      const signedInView = document.getElementById("signed-in");
 
       function show(el) {
-        [inviteForm, loginForm, signedInView].forEach((e) => (e.hidden = e !== el));
+        [inviteForm, loginForm].forEach((e) => (e.hidden = e !== el));
       }
 
-      // Organisers land straight on the dashboard instead of this generic
-      // "signed in" card -- regular members still see it, with its own
-      // link to /member/. list-my-events is the cheapest existing endpoint
-      // that reveals is_organiser (anyMember auth, works for everyone), so
-      // no new backend call is needed just for this check.
+      // Straight to the destination, no intermediate "you're signed in,
+      // click here" screen -- organisers go to the dashboard, everyone
+      // else to their own events. list-my-events is the cheapest existing
+      // endpoint that reveals is_organiser (anyMember auth, works for
+      // everyone), so no new backend call is needed just for this check.
       async function goToSignedInDestination() {
+        let destination = "../member/index.html";
         try {
           const {
             data: { session },
@@ -119,16 +110,16 @@
           });
           if (res.ok) {
             const { member } = await res.json();
-            if (member.is_organiser) {
-              window.location.href = "../dashboard/index.html";
-              return;
-            }
+            if (member.is_organiser) destination = "../dashboard/index.html";
           }
         } catch (e) {
-          // Fall through to the generic signed-in card -- a hiccup here
-          // shouldn't block someone from reaching their account at all.
+          // Fall through to the member destination -- a hiccup here
+          // shouldn't block someone from reaching their account at all. An
+          // organiser caught by this still reaches the dashboard from
+          // there via "Naar het dashboard", once that page's own
+          // list-my-events call succeeds.
         }
-        show(signedInView);
+        window.location.href = destination;
       }
 
       const hashParams = new URLSearchParams(window.location.hash.slice(1));
@@ -185,11 +176,6 @@
           }
           await goToSignedInDestination();
         });
-
-      document.getElementById("sign-out").addEventListener("click", async () => {
-        await supabaseClient.auth.signOut();
-        show(loginForm);
-      });
 
       // Same recovery flow as the manual admin-API version used before this
       // existed -- self-service now instead of asking someone to trigger it.

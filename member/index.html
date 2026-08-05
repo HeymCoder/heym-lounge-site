@@ -12,8 +12,7 @@
       <div class="who">
         <a class="small" href="./nieuws.html">Nieuws</a>
         <a id="to-dashboard" href="../dashboard/index.html" hidden>Naar het dashboard</a>
-        <span id="who-email"></span>
-        <button class="small" id="sign-out">Uitloggen</button>
+        <div id="account-menu"></div>
       </div>
     </header>
 
@@ -34,6 +33,7 @@
     <script src="../shared/config.js"></script>
     <script src="../shared/supabase-client.js"></script>
     <script src="../shared/footer.js"></script>
+    <script src="../shared/account-menu.js"></script>
     <script>
       const PUBLISHABLE_KEY = SUPABASE_PUBLISHABLE_KEY;
 
@@ -156,11 +156,6 @@
         renderEvents(events);
       }
 
-      document.getElementById("sign-out").addEventListener("click", async () => {
-        await supabaseClient.auth.signOut();
-        window.location.href = "../login/index.html";
-      });
-
       // Boot. Top-level await only works in ES modules -- this is now a
       // plain classic script (see config.js for why), so this needs an
       // async wrapper instead.
@@ -169,7 +164,7 @@
         if (!data.session) {
           window.location.href = "../login/index.html";
         } else {
-          document.getElementById("who-email").textContent = data.session.user.email;
+          mountAccountMenu("account-menu", data.session.user.email);
           try {
             await loadAll();
             document.getElementById("loading-note").hidden = true;
